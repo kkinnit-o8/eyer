@@ -8,6 +8,7 @@ const MOUSE_MODE = new URLSearchParams(location.search).has("mouse");
 const COUNTDOWN_MS = 3000;
 const FACE_LOST_MS = 600;
 const BEST_KEY = "eyer.best";
+const TUTORIAL_KEY = "eyer.tutorialSeen";
 
 // Targets on the tracking-check screen (viewport fractions).
 const CHECK_TARGETS = [
@@ -19,6 +20,7 @@ const CHECK_TARGETS = [
 const $ = (id) => document.getElementById(id);
 const canvas = $("stage");
 const ctx = canvas.getContext("2d");
+const tutorialSteps = [...document.querySelectorAll(".tutorial-step")];
 
 const app = {
   state: "intro",
@@ -34,6 +36,8 @@ const app = {
   showGaze: false,
   faceSeenAt: -Infinity,
   mouse: null,
+  tutorialStep: 0,
+  tutorialReturn: "intro",
 };
 
 function setState(state, { focus = true } = {}) {
@@ -78,17 +82,54 @@ async function enableCamera() {
   const button = $("btn-camera");
   button.disabled = true;
   setStatus($("intro-status"), "Starting camera and loading the face tracker…");
+  // First visit: show the tips while the tracker loads.
+  if (!readStorage(TUTORIAL_KEY)) openTutorial("intro");
   try {
     const tracker = new Tracker($("video"));
     await tracker.start();
     app.tracker = tracker;
     setStatus($("intro-status"), "");
-    setState("setup");
+    if (app.state === "intro") setState("setup");
   } catch (err) {
     console.error(err);
     setStatus($("intro-status"), err.message, "bad");
     button.disabled = false;
+    if (app.state === "tutorial") setState("intro");
   }
+}
+
+function openTutorial(returnTo = app.state) {
+  app.tutorialReturn = returnTo;
+  writeStorage(TUTORIAL_KEY, "1");
+  showTutorialStep(0);
+  setState("tutorial");
+}
+
+function showTutorialStep(i) {
+  app.tutorialStep = i;
+  tutorialSteps.forEach((el, j) => {
+    el.hidden = j !== i;
+  });
+  $("tutorial-progress").textContent = `Tip ${i + 1} of ${tutorialSteps.length}`;
+  $("btn-tutorial-back").disabled = i === 0;
+  $("btn-tutorial-next").textContent = i === tutorialSteps.length - 1 ? "Got it" : "Next";
+  document.querySelector('[data-screen="tutorial"]').scrollTop = 0;
+}
+
+function nextTutorialStep() {
+  if (app.tutorialStep < tutorialSteps.length - 1) showTutorialStep(app.tutorialStep + 1);
+  else closeTutorial();
+}
+
+function previousTutorialStep() {
+  if (app.tutorialStep === 0) return;
+  showTutorialStep(app.tutorialStep - 1);
+  if (app.tutorialStep === 0) $("btn-tutorial-next").focus({ preventScroll: true });
+}
+
+function closeTutorial() {
+  // Opened while the camera was starting: carry on to setup once it's ready.
+  setState(app.tutorialReturn === "intro" && app.tracker ? "setup" : app.tutorialReturn);
 }
 
 function startCalibration() {
@@ -156,18 +197,26 @@ function endGame() {
 }
 
 function loadBest() {
-  try {
-    return Number(localStorage.getItem(BEST_KEY)) || 0;
-  } catch {
-    return 0;
-  }
+  return Number(readStorage(BEST_KEY)) || 0;
 }
 
 function saveBest(score) {
+  writeStorage(BEST_KEY, String(score));
+}
+
+function readStorage(key) {
   try {
-    localStorage.setItem(BEST_KEY, String(score));
+    return localStorage.getItem(key);
   } catch {
-    // Storage blocked: the best score just won't persist.
+    return null;
+  }
+}
+
+function writeStorage(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Storage blocked: the value just won't persist.
   }
 }
 
@@ -289,12 +338,24 @@ $("btn-recalibrate-check").addEventListener("click", startCalibration);
 $("btn-recalibrate-results").addEventListener("click", startCalibration);
 $("btn-play").addEventListener("click", startCountdown);
 $("btn-again").addEventListener("click", startCountdown);
+$("btn-tutorial-next").addEventListener("click", nextTutorialStep);
+$("btn-tutorial-back").addEventListener("click", previousTutorialStep);
+$("btn-tutorial-skip").addEventListener("click", closeTutorial);
+for (const button of document.querySelectorAll("[data-open-tutorial]")) {
+  button.addEventListener("click", () => openTutorial());
+}
 
 window.addEventListener("resize", resize);
 window.addEventListener("pointermove", (e) => {
   app.mouse = { x: e.clientX, y: e.clientY };
 });
 window.addEventListener("keydown", (e) => {
+  if (app.state === "tutorial") {
+    if (e.key === "ArrowRight") nextTutorialStep();
+    else if (e.key === "ArrowLeft") previousTutorialStep();
+    else if (e.key === "Escape") closeTutorial();
+    return;
+  }
   if (e.key === "g" || e.key === "G") app.showGaze = !app.showGaze;
 });
 

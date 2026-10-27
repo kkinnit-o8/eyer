@@ -1,11 +1,9 @@
-// The game: a red ball on black. Look at it and it jumps somewhere else.
+// The game: a red ball on black. Look at it and it instantly jumps somewhere
+// else.
 
 export const GAME_MS = 15000;
-const DWELL_MS = 200; // how long gaze must rest on the ball to count
-const DWELL_DECAY = 0.5; // dwell drains at this rate when gaze slips off
 const BALL_RADIUS = 0.045; // fraction of the smaller viewport side
-const SPAWN_MS = 140;
-const POP_MS = 350;
+const POP_MS = 250;
 const HUD_CLEARANCE = 72; // keep the ball clear of the score and timer
 
 export class Game {
@@ -14,11 +12,9 @@ export class Game {
     this.slack = slack;
     this.resize(width, height);
     this.score = 0;
-    this.dwell = 0;
     this.pops = [];
     this.ball = null;
     this.startedAt = 0;
-    this.lastUpdate = 0;
   }
 
   static ballRadius(width, height) {
@@ -37,8 +33,7 @@ export class Game {
 
   start(now) {
     this.startedAt = now;
-    this.lastUpdate = now;
-    this.#spawn(now);
+    this.#spawn();
   }
 
   timeLeft(now) {
@@ -51,19 +46,15 @@ export class Game {
 
   /** Returns true when the ball was hit this frame. */
   update(now, gaze) {
-    const dt = Math.min(100, now - this.lastUpdate);
-    this.lastUpdate = now;
     this.pops = this.pops.filter((p) => now - p.t < POP_MS);
-    if (this.isOver(now)) return false;
+    if (this.isOver(now) || !gaze) return false;
 
     const b = this.ball;
-    const inside = gaze && Math.hypot(gaze.x - b.x, gaze.y - b.y) <= this.radius + this.slack;
-    this.dwell = inside ? this.dwell + dt : Math.max(0, this.dwell - dt * DWELL_DECAY);
-    if (this.dwell < DWELL_MS) return false;
+    if (Math.hypot(gaze.x - b.x, gaze.y - b.y) > this.radius + this.slack) return false;
 
     this.score++;
     this.pops.push({ x: b.x, y: b.y, t: now });
-    this.#spawn(now);
+    this.#spawn();
     return true;
   }
 
@@ -71,7 +62,7 @@ export class Game {
     for (const p of this.pops) {
       const t = (now - p.t) / POP_MS;
       ctx.strokeStyle = `rgba(255, 60, 45, ${1 - t})`;
-      ctx.lineWidth = 3 * (1 - t) + 1;
+      ctx.lineWidth = 2 * (1 - t) + 1;
       ctx.beginPath();
       ctx.arc(p.x, p.y, this.radius * (1 + 1.2 * t), 0, Math.PI * 2);
       ctx.stroke();
@@ -79,8 +70,7 @@ export class Game {
 
     if (this.isOver(now)) return;
     const { x, y } = this.ball;
-    const grow = Math.min(1, (now - this.ball.t) / SPAWN_MS);
-    const r = this.radius * (1 - (1 - grow) ** 2);
+    const r = this.radius;
 
     const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.1, x, y, r);
     g.addColorStop(0, "#ff7a6e");
@@ -94,16 +84,6 @@ export class Game {
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-
-    // Dwell progress ring.
-    if (this.dwell > 0) {
-      const a = Math.min(1, this.dwell / DWELL_MS);
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(x, y, this.radius + 8, -Math.PI / 2, -Math.PI / 2 + a * Math.PI * 2);
-      ctx.stroke();
-    }
   }
 
   #margin() {
@@ -111,7 +91,7 @@ export class Game {
   }
 
   // New spot, far enough away that the player has to move their eyes.
-  #spawn(now) {
+  #spawn() {
     const m = this.#margin();
     const minX = m;
     const maxX = this.width - m;
@@ -137,7 +117,6 @@ export class Game {
         bestDist = d;
       }
     }
-    this.ball = { ...best, t: now };
-    this.dwell = 0;
+    this.ball = best;
   }
 }

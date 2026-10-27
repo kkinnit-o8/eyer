@@ -21,8 +21,119 @@
         <li>Light your face from the front and sit 40–60&nbsp;cm from the screen.</li>
         <li>Keep your head fairly still and move your eyes.</li>
       </ul>
-      <button id="btn-camera" class="primary">Enable camera</button>
+      <div class="buttons">
+        <button id="btn-camera" class="primary">Enable camera</button>
+        <button data-open-tutorial>Tracking tips</button>
+      </div>
       <p id="intro-status" class="status" role="status"></p>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="tutorial">
+    <div class="panel tutorial">
+      <div class="tutorial-top">
+        <span id="tutorial-progress" class="label">Tip 1 of 4</span>
+        <button id="btn-tutorial-skip" class="link">Skip</button>
+      </div>
+
+      <div class="tutorial-steps">
+        <article class="tutorial-step">
+          <svg class="art" viewBox="0 0 240 120" aria-hidden="true">
+            <g class="glow">
+              <path d="M206 30 L84 40 M206 34 L84 52 M206 38 L84 64" />
+            </g>
+            <circle cx="214" cy="32" r="8" class="lamp" />
+            <circle cx="56" cy="48" r="22" class="line" />
+            <circle cx="71" cy="45" r="2.5" class="ink" />
+            <path d="M40 70 Q56 78 72 70 L80 112 H32 Z" class="line" />
+            <rect x="174" y="24" width="10" height="58" rx="2" class="line" />
+            <path d="M179 82 V100 M166 100 H192" class="line" />
+            <circle cx="179" cy="20" r="3.5" class="red" />
+            <path d="M90 94 H164 M90 94 l6 -4 M90 94 l6 4 M164 94 l-6 -4 M164 94 l-6 4" class="dim" />
+            <text x="127" y="110" text-anchor="middle">40–60 cm</text>
+          </svg>
+          <h2>Set up your space</h2>
+          <ul>
+            <li><strong>Light in front of you.</strong> A lamp or window behind your screen, not behind you. Dim light or light from behind makes your eyes hard to see.</li>
+            <li><strong>Camera at eye level, about an arm's length away.</strong> On a laptop, tilt the screen until your face is in the middle of the preview.</li>
+            <li><strong>Keep your eyes clear.</strong> No glare on glasses, and no hair or cap shading your eyes.</li>
+          </ul>
+        </article>
+
+        <article class="tutorial-step" hidden>
+          <svg class="art" viewBox="0 0 240 120" aria-hidden="true">
+            <circle cx="62" cy="12" r="4" class="red anim-target" />
+            <circle cx="62" cy="60" r="32" class="line" />
+            <ellipse cx="50" cy="54" rx="8" ry="5" class="eye-white" />
+            <ellipse cx="74" cy="54" rx="8" ry="5" class="eye-white" />
+            <g class="anim-eyes">
+              <circle cx="50" cy="54" r="3" class="ink" />
+              <circle cx="74" cy="54" r="3" class="ink" />
+            </g>
+            <path d="M62 60 V70 M54 80 Q62 84 70 80" class="line" />
+            <text x="62" y="112" text-anchor="middle" class="good">✓ Eyes move</text>
+
+            <circle cx="178" cy="12" r="4" class="red anim-target" />
+            <circle cx="178" cy="60" r="32" class="line" />
+            <g class="anim-head">
+              <ellipse cx="166" cy="54" rx="8" ry="5" class="eye-white" />
+              <ellipse cx="190" cy="54" rx="8" ry="5" class="eye-white" />
+              <circle cx="166" cy="54" r="3" class="ink" />
+              <circle cx="190" cy="54" r="3" class="ink" />
+              <path d="M178 60 V70 M170 80 Q178 84 186 80" class="line" />
+            </g>
+            <text x="178" y="112" text-anchor="middle" class="bad">✗ Head turns</text>
+          </svg>
+          <h2>Calibrate with your eyes, not your head</h2>
+          <p class="callout"><strong>Should I move my head?</strong> No. Keep your head still and move only your eyes.</p>
+          <ul>
+            <li>The tracker learns how your irises move. If you turn your head toward each dot, it learns those head turns instead and can't tell where your eyes alone are looking.</li>
+            <li><strong>Look at the white center of the dot</strong> and keep looking until it has shrunk away. Don't jump ahead to where you think it goes next.</li>
+            <li><strong>Keep a relaxed face.</strong> Squinting or a big smile changes the shape of your eyes. Blinking is fine; blinks are ignored.</li>
+          </ul>
+        </article>
+
+        <article class="tutorial-step" hidden>
+          <svg class="art" viewBox="0 0 240 120" aria-hidden="true">
+            <rect x="40" y="8" width="160" height="96" rx="6" class="line" />
+            <circle cx="75" cy="38" r="7" class="red anim-ball" />
+            <circle cx="75" cy="38" r="10" class="ring anim-gaze" />
+            <path d="M108 104 V114 M96 114 H144 M132 104 V114" class="line" />
+          </svg>
+          <h2>Play the way you calibrated</h2>
+          <ul>
+            <li><strong>Stay put.</strong> Calibration only fits the spot your head was in. Leaning in, sitting back or turning your head throws it off.</li>
+            <li><strong>Let your eyes do the work.</strong> Flick them straight to the ball. It vanishes the moment the tracker sees you looking at it.</li>
+            <li><strong>Recalibrate when something changes:</strong> you moved, the light changed, or the game left fullscreen. It only takes 20 seconds.</li>
+          </ul>
+        </article>
+
+        <article class="tutorial-step" hidden>
+          <svg class="art" viewBox="0 0 240 120" aria-hidden="true">
+            <rect x="40" y="8" width="160" height="96" rx="6" class="line" />
+            <g class="target">
+              <circle cx="56" cy="20" r="3.5" /><circle cx="120" cy="20" r="3.5" /><circle cx="184" cy="20" r="3.5" />
+              <circle cx="56" cy="56" r="3.5" /><circle cx="184" cy="56" r="3.5" />
+              <circle cx="56" cy="92" r="3.5" /><circle cx="184" cy="92" r="3.5" />
+            </g>
+            <circle cx="120" cy="52" r="3.5" class="red" />
+            <circle cx="123" cy="50" r="8" class="ring" />
+          </svg>
+          <h2>Check and fix</h2>
+          <ul>
+            <li><strong>On the tracking check, look at each grey target.</strong> It turns red when the tracker agrees with you.</li>
+            <li><strong>Ring off to the same side everywhere?</strong> Recalibrate, keeping your head still.</li>
+            <li><strong>Ring shaky?</strong> Put more light on your face or move a little closer.</li>
+            <li><strong>Up and down is harder than left and right</strong> for every webcam tracker. A camera at eye level helps most.</li>
+            <li>Press <kbd>G</kbd> in the game to see the ring while you play.</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="buttons">
+        <button id="btn-tutorial-back">Back</button>
+        <button id="btn-tutorial-next" class="primary">Next</button>
+      </div>
     </div>
   </section>
 
@@ -36,7 +147,7 @@
         <canvas id="cam-overlay"></canvas>
       </div>
       <p id="face-status" class="status" role="status">Looking for your face…</p>
-      <p class="hint">Next comes calibration: a dot moves around the screen. Look at it until it shrinks away. It takes about 20&nbsp;seconds.</p>
+      <p class="hint">Next comes calibration: a dot moves around the screen. <strong>Keep your head still and follow it with your eyes only</strong>, until each dot shrinks away. It takes about 20&nbsp;seconds.</p>
       <button id="btn-calibrate" class="primary" disabled>Start calibration</button>
       <p id="setup-error" class="status" role="alert"></p>
     </div>
@@ -51,7 +162,7 @@
         <button id="btn-play" class="primary">Play</button>
         <button id="btn-recalibrate-check">Recalibrate</button>
       </div>
-      <p class="hint">Press <kbd>G</kbd> during the game to show or hide the ring.</p>
+      <p class="hint">Press <kbd>G</kbd> during the game to show or hide the ring. Tracking off? <button class="link" data-open-tutorial>See the tips</button></p>
     </div>
   </section>
 
@@ -64,6 +175,7 @@
         <button id="btn-again" class="primary">Play again</button>
         <button id="btn-recalibrate-results">Recalibrate</button>
       </div>
+      <button class="link" data-open-tutorial>Tracking tips</button>
     </div>
   </section>
 

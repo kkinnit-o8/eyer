@@ -4,7 +4,7 @@
 import { FEATURE_KEYS } from "./tracker.js";
 import { BLINK_THRESHOLD } from "./gaze.js";
 
-const INTRO_MS = 1500; // first dot waits so the player can find it
+const INTRO_MS = 2000; // first dot waits so the player can read the reminder
 const MOVE_MS = 450; // travel time between points
 const DWELL_MS = 1100; // time on each point
 const SETTLE_MS = 450; // ignore the start of each dwell while the eyes land
@@ -112,9 +112,11 @@ export class Calibration {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     if (this.phase === "intro") {
+      const size = Math.min(20, width / 18);
       ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
-      ctx.font = "600 20px system-ui, sans-serif";
-      ctx.fillText("Keep your eyes on the dot", width / 2, height / 2 + 56);
+      ctx.font = `600 ${size}px system-ui, sans-serif`;
+      ctx.fillText("Keep your head still.", width / 2, height / 2 + 56);
+      ctx.fillText("Follow the dot with your eyes.", width / 2, height / 2 + 56 + size * 1.5);
     }
     ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
     ctx.font = "14px system-ui, sans-serif";

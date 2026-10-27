@@ -192,6 +192,21 @@ button.primary:hover:not(:disabled) {
   background: #ff5a50;
 }
 
+button.link {
+  padding: 2px 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+button.link:hover {
+  color: var(--text);
+}
+
 button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -207,6 +222,198 @@ kbd {
   border: 1px solid #555;
   border-radius: 4px;
   font: 0.85em ui-monospace, monospace;
+}
+
+/* ---- Tutorial ---- */
+
+.panel.tutorial {
+  width: min(560px, 100%);
+  text-align: left;
+}
+
+.tutorial-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+/* All steps share one grid cell so the panel keeps the height of the
+   tallest step and the buttons stay put while paging. */
+.tutorial-steps {
+  display: grid;
+}
+
+.tutorial-step {
+  grid-area: 1 / 1;
+}
+
+.tutorial-step[hidden] {
+  display: block;
+  visibility: hidden;
+}
+
+.tutorial h2 {
+  text-align: center;
+}
+
+.tutorial ul {
+  margin: 0;
+  padding-left: 1.2em;
+  color: #c8c8c8;
+}
+
+.tutorial li {
+  margin: 0 0 10px;
+}
+
+.tutorial li strong {
+  color: var(--text);
+}
+
+.tutorial .buttons {
+  margin-bottom: 0;
+}
+
+.callout {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--red);
+  border-radius: 8px;
+  background: rgba(255, 42, 31, 0.1);
+}
+
+.art {
+  display: block;
+  width: 100%;
+  max-width: 300px;
+  height: auto;
+  margin: 0 auto 12px;
+  overflow: visible;
+}
+
+.art .line,
+.art .dim {
+  fill: none;
+  stroke: #8a8a8a;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.art .dim {
+  stroke: #5a5a5a;
+  stroke-width: 1.5;
+}
+
+.art .ink {
+  fill: #8a8a8a;
+}
+
+.art .red {
+  fill: var(--red);
+}
+
+.art .eye-white {
+  fill: #e6e6e6;
+}
+
+.art .anim-eyes .ink,
+.art .anim-head .ink {
+  fill: #151515;
+}
+
+.art .lamp {
+  fill: #fde68a;
+}
+
+.art .glow path {
+  stroke: rgba(253, 230, 138, 0.35);
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.art .ring {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.8);
+  stroke-width: 1.5;
+}
+
+.art .target circle {
+  fill: #4a4a4a;
+}
+
+.art text {
+  fill: var(--muted);
+  font: 600 11px system-ui, sans-serif;
+}
+
+.art text.good {
+  fill: var(--ok);
+}
+
+.art text.bad {
+  fill: var(--bad);
+}
+
+/* The target slides left and right; one face follows with its eyes, the
+   other turns its head. */
+.art .anim-target {
+  animation: tutorial-target 3.2s ease-in-out infinite;
+}
+
+.art .anim-eyes {
+  animation: tutorial-eyes 3.2s ease-in-out 0.15s infinite;
+}
+
+.art .anim-head {
+  animation: tutorial-head 3.2s ease-in-out 0.15s infinite;
+}
+
+@keyframes tutorial-target {
+  0%, 20%, 90%, 100% { transform: translateX(-22px); }
+  40%, 70% { transform: translateX(22px); }
+}
+
+@keyframes tutorial-eyes {
+  0%, 20%, 90%, 100% { transform: translateX(-4px); }
+  40%, 70% { transform: translateX(4px); }
+}
+
+@keyframes tutorial-head {
+  0%, 20%, 90%, 100% { transform: translateX(-9px); }
+  40%, 70% { transform: translateX(9px); }
+}
+
+/* The gaze ring travels to the ball; the ball jumps away the instant it
+   arrives. */
+.art .anim-ball {
+  animation: tutorial-ball 4s infinite;
+}
+
+.art .anim-gaze {
+  animation: tutorial-gaze 4s infinite;
+}
+
+@keyframes tutorial-ball {
+  0%, 24.9% { transform: translate(0, 0); }
+  25%, 49.9% { transform: translate(90px, 32px); }
+  50%, 74.9% { transform: translate(25px, 44px); }
+  75%, 100% { transform: translate(85px, -6px); }
+}
+
+@keyframes tutorial-gaze {
+  0%, 13% { transform: translate(85px, -6px); }
+  25%, 38% { transform: translate(0, 0); }
+  50%, 63% { transform: translate(90px, 32px); }
+  75%, 88% { transform: translate(25px, 44px); }
+  100% { transform: translate(85px, -6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .art * {
+    animation: none !important;
+  }
 }
 
 #cam {

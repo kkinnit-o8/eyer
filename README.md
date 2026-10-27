@@ -7,18 +7,36 @@ have 15 seconds to catch as many as you can.
 
 ## How to play
 
-1. Click **Enable camera** and allow camera access.
+1. Click **Enable camera** and allow camera access. The first time, a short
+   tutorial on getting good tracking plays while the tracker loads. You can
+   open it again any time with **Tracking tips**.
 2. Get your face in the preview. Light it from the front and sit 40–60 cm away.
-3. **Calibrate**: a dot moves to 13 spots on the screen. Keep your eyes on it
-   until it shrinks away (about 20 seconds). The page goes fullscreen for this.
+3. **Calibrate**: a dot moves to 13 spots on the screen. Keep your head still
+   and follow it with your eyes until each dot shrinks away (about 20 seconds).
+   The page goes fullscreen for this.
 4. **Tracking check**: look around. The white ring should follow your eyes, and
    the grey targets light up red when you look at them. If tracking is off,
    recalibrate.
-5. **Play**: after a 3-second countdown, look at the ball. Keep your eyes on it
-   for a moment (the white ring fills) and it moves.
+5. **Play**: after a 3-second countdown, look at the ball. It vanishes the
+   instant the tracker sees you looking at it and reappears somewhere else.
 
 Press <kbd>G</kbd> during the game to show where the tracker thinks you're
 looking. Press <kbd>Space</kbd> on the results screen to play again.
+
+## Getting the best tracking
+
+The in-game tutorial covers this with pictures. In short:
+
+- **Move your eyes, not your head**, both while calibrating and while playing.
+  The tracker learns how your irises move. If you turn your head toward each
+  calibration dot, it learns those head turns instead.
+- **Light your face from the front**, camera at eye level, about an arm's
+  length away. No glare on glasses or hair over your eyes.
+- **Look at the white center of each calibration dot** until it shrinks away,
+  with a relaxed face. Blinking is fine.
+- **Stay in the same spot** after calibrating, and recalibrate if you move, the
+  light changes, or the game leaves fullscreen.
+- Up and down is always less precise than left and right with a webcam.
 
 ## How it works
 
