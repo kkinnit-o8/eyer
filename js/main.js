@@ -2,6 +2,8 @@ import { Tracker } from "./tracker.js";
 import { Calibration } from "./calibration.js";
 import { fitGazeModel, GazeEstimator } from "./gaze.js";
 import { Game, GAME_MS } from "./game.js";
+import { ManiaMode } from "./mania/index.js";
+import { $, setStatus, readStorage, writeStorage } from "./ui.js";
 
 // ?mouse uses the mouse pointer instead of the camera, handy for testing.
 const MOUSE_MODE = new URLSearchParams(location.search).has("mouse");
@@ -17,7 +19,6 @@ const CHECK_TARGETS = [
   [0.08, 0.9], [0.92, 0.9],
 ];
 
-const $ = (id) => document.getElementById(id);
 const canvas = $("stage");
 const ctx = canvas.getContext("2d");
 const tutorialSteps = [...document.querySelectorAll(".tutorial-step")];
@@ -40,6 +41,12 @@ const app = {
   tutorialReturn: "intro",
 };
 
+const mania = new ManiaMode({
+  setState: (state) => setState(state),
+  gaze: (now) => currentGaze(now),
+  exit: () => setState("check"),
+});
+
 function setState(state, { focus = true } = {}) {
   app.state = state;
   document.body.dataset.state = state;
@@ -50,11 +57,6 @@ function setState(state, { focus = true } = {}) {
   if (focus) document.querySelector(".screen.active button.primary:not(:disabled)")?.focus({ preventScroll: true });
 }
 
-function setStatus(el, text, tone = "") {
-  if (el.textContent !== text) el.textContent = text;
-  el.className = `status ${tone}`.trim();
-}
-
 function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   app.width = window.innerWidth;
@@ -63,6 +65,7 @@ function resize() {
   canvas.height = Math.round(app.height * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   app.game?.resize(app.width, app.height);
+  mania.resize(app.width, app.height);
 }
 
 function currentGaze(now) {
@@ -204,22 +207,6 @@ function saveBest(score) {
   writeStorage(BEST_KEY, String(score));
 }
 
-function readStorage(key) {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function writeStorage(key, value) {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // Storage blocked: the value just won't persist.
-  }
-}
-
 // ---- Per frame ----------------------------------------------------------
 
 function onTrackerFrame(result, now) {
@@ -258,6 +245,8 @@ function step(now) {
       app.game.start(now);
       setState("playing");
     }
+  } else if (app.state === "mania") {
+    mania.step(now);
   } else if (app.state === "playing") {
     app.game.update(now, currentGaze(now));
     const left = app.game.timeLeft(now);
@@ -267,7 +256,7 @@ function step(now) {
     if (app.game.isOver(now)) endGame();
   }
 
-  const watching = ["calibrating", "check", "countdown", "playing"].includes(app.state);
+  const watching = ["calibrating", "check", "countdown", "playing", "mania"].includes(app.state);
   $("face-warning").hidden = !(app.tracker && watching && now - app.faceSeenAt > FACE_LOST_MS);
 }
 
@@ -290,6 +279,9 @@ function draw(now) {
     if (app.showGaze) drawGazeRing(currentGaze(now));
   } else if (app.state === "playing") {
     app.game.draw(ctx, now);
+    if (app.showGaze) drawGazeRing(currentGaze(now));
+  } else if (app.state === "mania") {
+    mania.draw(ctx);
     if (app.showGaze) drawGazeRing(currentGaze(now));
   }
 }
@@ -335,9 +327,10 @@ function loop(now) {
 $("btn-camera").addEventListener("click", enableCamera);
 $("btn-calibrate").addEventListener("click", startCalibration);
 $("btn-recalibrate-check").addEventListener("click", startCalibration);
-$("btn-recalibrate-results").addEventListener("click", startCalibration);
 $("btn-play").addEventListener("click", startCountdown);
 $("btn-again").addEventListener("click", startCountdown);
+$("btn-ball-menu").addEventListener("click", () => setState("check"));
+$("btn-mania").addEventListener("click", () => mania.open());
 $("btn-tutorial-next").addEventListener("click", nextTutorialStep);
 $("btn-tutorial-back").addEventListener("click", previousTutorialStep);
 $("btn-tutorial-skip").addEventListener("click", closeTutorial);
@@ -350,6 +343,11 @@ window.addEventListener("pointermove", (e) => {
   app.mouse = { x: e.clientX, y: e.clientY };
 });
 window.addEventListener("keydown", (e) => {
+  if (app.state === "mania") {
+    if (e.key === "g" || e.key === "G") app.showGaze = !app.showGaze;
+    else mania.keydown(e);
+    return;
+  }
   if (app.state === "tutorial") {
     if (e.key === "ArrowRight") nextTutorialStep();
     else if (e.key === "ArrowLeft") previousTutorialStep();
@@ -357,6 +355,9 @@ window.addEventListener("keydown", (e) => {
     return;
   }
   if (e.key === "g" || e.key === "G") app.showGaze = !app.showGaze;
+});
+window.addEventListener("keyup", (e) => {
+  if (app.state === "mania") mania.keyup(e);
 });
 
 if (MOUSE_MODE) $("btn-camera").textContent = "Start (mouse mode)";

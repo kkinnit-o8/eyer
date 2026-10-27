@@ -15,7 +15,11 @@
   <section class="screen" data-screen="intro">
     <div class="panel">
       <h1>Eyer</h1>
-      <p class="lead">Look at the red ball. The moment your eyes land on it, it jumps somewhere else. You have <strong>15&nbsp;seconds</strong> to catch as many as you can.</p>
+      <p class="lead">Games you play with your eyes.</p>
+      <ul class="modes">
+        <li><strong>Ball:</strong> look at the red ball and it jumps somewhere else. Catch as many as you can in 15&nbsp;seconds.</li>
+        <li><strong>Peripheral mania:</strong> play an osu!mania map while your eyes stay on circles in the corners. The notes are only in the corner of your eye.</li>
+      </ul>
       <ul class="tips">
         <li>Your webcam tracks your eyes. The video stays on your device.</li>
         <li>Light your face from the front and sit 40–60&nbsp;cm from the screen.</li>
@@ -159,7 +163,8 @@
       <p>Look around the screen. The white ring should follow your eyes.</p>
       <p id="accuracy" class="status"></p>
       <div class="buttons">
-        <button id="btn-play" class="primary">Play</button>
+        <button id="btn-play" class="primary">Ball</button>
+        <button id="btn-mania" class="primary">Peripheral mania</button>
         <button id="btn-recalibrate-check">Recalibrate</button>
       </div>
       <p class="hint">Press <kbd>G</kbd> during the game to show or hide the ring. Tracking off? <button class="link" data-open-tutorial>See the tips</button></p>
@@ -173,9 +178,69 @@
       <p id="best-score" class="status"></p>
       <div class="buttons">
         <button id="btn-again" class="primary">Play again</button>
-        <button id="btn-recalibrate-results">Recalibrate</button>
+        <button id="btn-ball-menu">Menu</button>
       </div>
       <button class="link" data-open-tutorial>Tracking tips</button>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="mania-menu">
+    <div class="panel wide">
+      <h2>Peripheral mania</h2>
+      <p class="hint">4-key notes fall down the middle, but you can't look at them. Keep your eyes on the circles that land in the corners on the beat, and read the notes from the corner of your eye. Stare at the middle and the notes disappear.</p>
+      <label id="mania-drop" class="dropzone">
+        <input id="mania-file" type="file" accept=".osz,.zip,.osu,.mp3,.ogg,.wav" multiple>
+        <strong>Choose an osu! map</strong>
+        <span>.osz file, or drop it here</span>
+      </label>
+      <p id="mania-status" class="status" role="status"></p>
+      <div id="mania-map" hidden>
+        <p id="mania-title" class="map-title"></p>
+        <div class="fields">
+          <label for="mania-diff">Difficulty</label>
+          <select id="mania-diff"></select>
+          <label for="mania-rhythm">Corner circles</label>
+          <select id="mania-rhythm">
+            <option value="bar">Every bar</option>
+            <option value="2">Every 2 beats</option>
+            <option value="1">Every beat</option>
+          </select>
+          <label for="mania-scroll">Note fall time</label>
+          <span class="range"><input id="mania-scroll" type="range" min="400" max="2000" step="50"><output id="mania-scroll-value"></output></span>
+          <label for="mania-offset">Note offset (ms)</label>
+          <input id="mania-offset" type="number" step="5">
+          <label for="mania-autoplay">Autoplay</label>
+          <span class="check"><input id="mania-autoplay" type="checkbox"> Watch the map play itself</span>
+        </div>
+        <p id="mania-info" class="status"></p>
+      </div>
+      <div class="buttons">
+        <button id="btn-mania-start" class="primary" disabled>Play</button>
+        <button id="btn-mania-back">Menu</button>
+      </div>
+      <p class="hint">Keys <kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd>. <kbd>Esc</kbd> quits a song. If notes feel late, lower the note offset.</p>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="mania-results">
+    <div class="panel">
+      <p id="mr-title" class="label"></p>
+      <p id="mr-acc" class="big-score">0%</p>
+      <div class="result-columns">
+        <div>
+          <h3>Notes</h3>
+          <dl id="mr-notes" class="stats"></dl>
+        </div>
+        <div>
+          <h3>Eyes</h3>
+          <dl id="mr-eyes" class="stats"></dl>
+        </div>
+      </div>
+      <div class="buttons">
+        <button id="btn-mania-retry" class="primary">Retry</button>
+        <button id="btn-mania-maps">Change map</button>
+        <button id="btn-mania-menu">Menu</button>
+      </div>
     </div>
   </section>
 

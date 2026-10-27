@@ -35,7 +35,8 @@ body {
 
 body[data-state="calibrating"],
 body[data-state="countdown"],
-body[data-state="playing"] {
+body[data-state="playing"],
+body[data-state="mania"] {
   cursor: none;
 }
 
@@ -75,6 +76,10 @@ body[data-state="playing"] {
 
 .panel.compact {
   width: min(400px, 100%);
+}
+
+.panel.wide {
+  width: min(600px, 100%);
 }
 
 h1 {
@@ -118,6 +123,25 @@ p {
 
 .tips li {
   margin: 4px 0;
+}
+
+.modes {
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.modes li {
+  margin: 0 0 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: #c8c8c8;
+}
+
+.modes strong {
+  color: var(--text);
 }
 
 .hint {
@@ -414,6 +438,132 @@ kbd {
   .art * {
     animation: none !important;
   }
+}
+
+/* ---- Peripheral mania ---- */
+
+.dropzone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin: 16px 0 8px;
+  padding: 22px 16px;
+  border: 2px dashed #3a3a3a;
+  border-radius: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.dropzone:hover,
+.dropzone.over {
+  border-color: var(--red);
+  color: var(--text);
+}
+
+.dropzone:focus-within {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+  outline-offset: 3px;
+}
+
+.dropzone strong {
+  color: var(--text);
+  font-size: 1.05rem;
+}
+
+.dropzone input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.map-title {
+  margin: 4px 0 14px;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px 14px;
+  align-items: center;
+  margin-bottom: 14px;
+  text-align: left;
+}
+
+.fields > label {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+select,
+input[type="number"] {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  background: #0b0b0b;
+  color: var(--text);
+  font: inherit;
+}
+
+.range,
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.range input {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--red);
+}
+
+.range output {
+  min-width: 4.5em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--red);
+}
+
+.result-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 24px;
+  margin-top: 12px;
+  text-align: left;
+}
+
+h3 {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  margin: 0;
+}
+
+.stats dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 #cam {

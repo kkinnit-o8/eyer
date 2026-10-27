@@ -1,9 +1,12 @@
 # Eyer
 
-An eye-tracking game that runs in the browser using your webcam.
+Eye-tracking games that run in the browser using your webcam.
 
-A red ball floats in black space. Look at it and it jumps somewhere else. You
-have 15 seconds to catch as many as you can.
+- **Ball**: a red ball floats in black space. Look at it and it jumps
+  somewhere else. You have 15 seconds to catch as many as you can.
+- **Peripheral mania**: 4-key osu!mania with a twist. You can't look at the
+  notes. Your eyes have to stay on circles that land in the corners of the
+  screen on the beat, so you read the notes from the corner of your eye.
 
 ## How to play
 
@@ -17,8 +20,39 @@ have 15 seconds to catch as many as you can.
 4. **Tracking check**: look around. The white ring should follow your eyes, and
    the grey targets light up red when you look at them. If tracking is off,
    recalibrate.
-5. **Play**: after a 3-second countdown, look at the ball. It vanishes the
-   instant the tracker sees you looking at it and reappears somewhere else.
+5. **Pick a game** from the tracking check screen.
+
+### Ball
+
+After a 3-second countdown, look at the ball. It vanishes the instant the
+tracker sees you looking at it and reappears somewhere else.
+
+### Peripheral mania
+
+1. Choose an osu! map: an `.osz` file (what you download from the osu!
+   website), or a `.osu` file together with its song. Drag and drop works too.
+   Nothing is uploaded anywhere; the map is read in your browser.
+2. Pick a difficulty and settings:
+   - **Corner circles**: one per bar, every 2 beats, or every beat. They are
+     placed on the map's own beat grid (its BPM and offset from the timing
+     points), so they land on the beat. Circles never come closer than
+     0.45 s apart, so very fast songs skip beats.
+   - **Note fall time**: how long a note takes to fall. Longer is easier to
+     read from the corner of your eye.
+   - **Note offset**: if notes feel late compared to the music, lower it.
+   - **Autoplay**: watch the map play itself, to check how the circles line
+     up with the music.
+3. Play with <kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd>. When a
+   circle lands in a corner, move your eyes there. It turns green if you got
+   there on the beat and yellow if late. Your combo, accuracy and last
+   judgment are shown in the circle you're looking at.
+4. Look at the middle for more than 0.3 s and the notes disappear until you
+   look away. A quick sweep across on the way to another corner is fine.
+5. Results show note accuracy (osu!mania style, using the map's OD) and how
+   well your eyes kept up.
+
+Mania maps with more than 4 keys are squeezed into 4 lanes, and osu!standard
+maps are converted by where each circle sits horizontally.
 
 Press <kbd>G</kbd> during the game to show where the tracker thinks you're
 looking. Press <kbd>Space</kbd> on the results screen to play again.
@@ -66,10 +100,16 @@ help.
 | `js/tracker.js` | Webcam, face tracking, feature extraction |
 | `js/calibration.js` | Calibration dot sequence and sample collection |
 | `js/gaze.js` | Gaze regression model and smoothing |
-| `js/game.js` | The game: ball, hits, timer |
+| `js/game.js` | The ball game: ball, hits, timer |
+| `js/ui.js` | Small DOM and storage helpers |
+| `js/mania/osu.js` | Reading `.osz` archives and `.osu` files |
+| `js/mania/chart.js` | 4-lane chart, beat grid, corner circles on the beat |
+| `js/mania/game.js` | Peripheral mania gameplay: timing, judgments, gaze rules, drawing |
+| `js/mania/index.js` | Peripheral mania screens: map loading, settings, results |
 
-Gameplay constants such as round length, ball size and dwell time are at the
-top of `js/game.js`.
+Gameplay constants are at the top of each game file, for example round length
+and ball size in `js/game.js`, and the gaze timing windows in
+`js/mania/game.js`.
 
 ## Running locally
 
