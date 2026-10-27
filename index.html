@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Eyer</title>
+  <meta name="description" content="An eye-tracking game that runs in your browser. Look at the red ball to score.">
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='42' fill='%23ff2a1f'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-state="intro">
+  <canvas id="stage"></canvas>
+
+  <section class="screen" data-screen="intro">
+    <div class="panel">
+      <h1>Eyer</h1>
+      <p class="lead">Look at the red ball. The moment your eyes land on it, it jumps somewhere else. You have <strong>15&nbsp;seconds</strong> to catch as many as you can.</p>
+      <ul class="tips">
+        <li>Your webcam tracks your eyes. The video stays on your device.</li>
+        <li>Light your face from the front and sit 40–60&nbsp;cm from the screen.</li>
+        <li>Keep your head fairly still and move your eyes.</li>
+      </ul>
+      <button id="btn-camera" class="primary">Enable camera</button>
+      <p id="intro-status" class="status" role="status"></p>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="setup">
+    <div class="panel">
+      <h2>Get in position</h2>
+      <!-- Screens are hidden with visibility, not display, so this video
+           keeps receiving camera frames while other screens are showing. -->
+      <div id="cam">
+        <video id="video" playsinline muted></video>
+        <canvas id="cam-overlay"></canvas>
+      </div>
+      <p id="face-status" class="status" role="status">Looking for your face…</p>
+      <p class="hint">Next comes calibration: a dot moves around the screen. Look at it until it shrinks away. It takes about 20&nbsp;seconds.</p>
+      <button id="btn-calibrate" class="primary" disabled>Start calibration</button>
+      <p id="setup-error" class="status" role="alert"></p>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="check">
+    <div class="panel compact">
+      <h2>Tracking check</h2>
+      <p>Look around the screen. The white ring should follow your eyes.</p>
+      <p id="accuracy" class="status"></p>
+      <div class="buttons">
+        <button id="btn-play" class="primary">Play</button>
+        <button id="btn-recalibrate-check">Recalibrate</button>
+      </div>
+      <p class="hint">Press <kbd>G</kbd> during the game to show or hide the ring.</p>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="results">
+    <div class="panel compact">
+      <p class="label">Score</p>
+      <p id="final-score" class="big-score">0</p>
+      <p id="best-score" class="status"></p>
+      <div class="buttons">
+        <button id="btn-again" class="primary">Play again</button>
+        <button id="btn-recalibrate-results">Recalibrate</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="hud" aria-live="off">
+    <span id="hud-score">0</span>
+    <span id="hud-time">15.0</span>
+  </div>
+
+  <p id="face-warning" role="alert" hidden>Can't see your face</p>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

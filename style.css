@@ -1,0 +1,288 @@
+:root {
+  --bg: #000;
+  --text: #f2f2f2;
+  --muted: #9a9a9a;
+  --panel: rgba(18, 18, 18, 0.92);
+  --border: #2a2a2a;
+  --red: #ff2a1f;
+  --red-dark: #c41208;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --bad: #f87171;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+#stage {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+body[data-state="calibrating"],
+body[data-state="countdown"],
+body[data-state="playing"] {
+  cursor: none;
+}
+
+/* Screens are overlays. Inactive ones use visibility (not display) so the
+   camera video inside the setup screen keeps playing. */
+.screen {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow-y: auto;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.2s ease, visibility 0s linear 0.2s;
+}
+
+.screen.active {
+  visibility: visible;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+/* Keep the middle of the screen free to look around during the check. */
+.screen[data-screen="check"] {
+  align-items: end;
+}
+
+.panel {
+  width: min(520px, 100%);
+  padding: 28px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  text-align: center;
+}
+
+.panel.compact {
+  width: min(400px, 100%);
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: 2.6rem;
+  letter-spacing: -0.02em;
+}
+
+h1::before {
+  content: "";
+  display: inline-block;
+  width: 0.62em;
+  height: 0.62em;
+  margin-right: 0.3em;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ff7a6e, var(--red) 55%, var(--red-dark));
+  box-shadow: 0 0 18px rgba(255, 42, 31, 0.55);
+  vertical-align: 0.02em;
+}
+
+h2 {
+  margin: 0 0 16px;
+  font-size: 1.5rem;
+}
+
+p {
+  margin: 0 0 12px;
+}
+
+.lead {
+  font-size: 1.1rem;
+}
+
+.tips {
+  margin: 0 0 24px;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.tips li {
+  margin: 4px 0;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.status {
+  min-height: 1.5em;
+  color: var(--muted);
+}
+
+.status.ok {
+  color: var(--ok);
+}
+
+.status.warn {
+  color: var(--warn);
+}
+
+.status.bad {
+  color: var(--bad);
+}
+
+.label {
+  margin: 0;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.85rem;
+}
+
+.big-score {
+  margin: 0 0 4px;
+  font-size: 5rem;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin: 20px 0 12px;
+}
+
+button {
+  font: inherit;
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: 999px;
+  border: 1px solid #444;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: #777;
+}
+
+button.primary {
+  border-color: var(--red);
+  background: var(--red);
+  color: #fff;
+}
+
+button.primary:hover:not(:disabled) {
+  border-color: #ff5a50;
+  background: #ff5a50;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+button:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+  outline-offset: 3px;
+}
+
+kbd {
+  padding: 1px 6px;
+  border: 1px solid #555;
+  border-radius: 4px;
+  font: 0.85em ui-monospace, monospace;
+}
+
+#cam {
+  position: relative;
+  width: min(360px, 100%);
+  aspect-ratio: 4 / 3;
+  margin: 0 auto 16px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #111;
+}
+
+#cam video,
+#cam canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Mirror so it behaves like a mirror for the player. */
+  transform: scaleX(-1);
+}
+
+#hud {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: none;
+  justify-content: space-between;
+  padding: 16px 24px;
+  font-size: 2rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.85);
+  pointer-events: none;
+}
+
+body[data-state="countdown"] #hud,
+body[data-state="playing"] #hud {
+  display: flex;
+}
+
+#hud-time.low {
+  color: var(--red);
+}
+
+#face-warning {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(248, 113, 113, 0.15);
+  color: var(--bad);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+#face-warning[hidden] {
+  display: none;
+}
+
+@media (max-width: 480px) {
+  .panel {
+    padding: 20px 16px;
+  }
+
+  h1 {
+    font-size: 2.1rem;
+  }
+
+  #hud {
+    font-size: 1.5rem;
+    padding: 12px 16px;
+  }
+}
