@@ -68,6 +68,23 @@ export function buildOneKeyNotes(map, sections, density) {
   return kept.map((o) => ({ lane: 0, time: o.time, end: null, snap: o.strength }));
 }
 
+/** Moves a time to the nearest 1/div beat for any of the given divisions. */
+export function snapToBeat(time, sections, divisions) {
+  const s = sectionAt(sections, time);
+  if (!s) return time;
+  let best = time;
+  let bestErr = Infinity;
+  for (const div of divisions) {
+    const step = s.beatLength / div;
+    const snapped = s.time + Math.round((time - s.time) / step) * step;
+    if (Math.abs(snapped - time) < bestErr) {
+      bestErr = Math.abs(snapped - time);
+      best = snapped;
+    }
+  }
+  return best;
+}
+
 function sectionAt(sections, time) {
   let found = sections[0];
   for (const s of sections) if (s.time <= time) found = s;

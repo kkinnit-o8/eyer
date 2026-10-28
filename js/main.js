@@ -261,6 +261,8 @@ function step(now) {
     mania.step(now);
   } else if (app.state === "offset") {
     mania.stepOffset(now);
+  } else if (app.state === "editor-rec") {
+    mania.stepEditor(now);
   } else if (app.state === "playing") {
     app.game.update(now, currentGaze(now));
     const left = app.game.timeLeft(now);
@@ -297,6 +299,8 @@ function draw(now) {
   } else if (app.state === "mania") {
     mania.draw(ctx);
     if (app.showGaze) drawGazeRing(currentGaze(now));
+  } else if (app.state === "editor-rec") {
+    mania.drawEditor(ctx, now);
   }
 }
 
@@ -367,7 +371,14 @@ window.addEventListener("resize", resize);
 window.addEventListener("pointermove", (e) => {
   app.mouse = { x: e.clientX, y: e.clientY };
 });
+window.addEventListener("pointerdown", (e) => {
+  if (app.state === "editor-rec") mania.editorPointer(e);
+});
 window.addEventListener("keydown", (e) => {
+  if (app.state === "editor-rec") {
+    mania.editorKey(e);
+    return;
+  }
   if (app.state === "offset") {
     mania.keydown(e);
     return;

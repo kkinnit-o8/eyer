@@ -267,9 +267,42 @@
       </div>
       <div class="buttons">
         <button id="btn-mania-start" class="primary" disabled>Play</button>
+        <button id="btn-editor" disabled>Make a level</button>
         <button id="btn-mania-back">Menu</button>
       </div>
       <p class="hint">One key: <kbd>Space</kbd>. Mania: <kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd>. <kbd>Esc</kbd> quits a song. If notes feel late, lower the note offset.</p>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="editor">
+    <div class="panel">
+      <h2>Make a level</h2>
+      <p id="editor-song" class="map-title"></p>
+      <div data-stage="intro">
+        <p>Two rounds, each with the song playing:</p>
+        <ol class="steps">
+          <li><strong>Notes.</strong> Press <kbd>Space</kbd> wherever you want a note.</li>
+          <li><strong>Eye circles.</strong> The song plays again with your notes ticking along. Click wherever you want an eye circle to land.</li>
+        </ol>
+        <p class="hint">Press <kbd>Esc</kbd> to end a round whenever you like: you don't have to map the whole song. <kbd>Backspace</kbd> undoes the last one.</p>
+        <label class="check"><input id="editor-snap" type="checkbox" checked> Snap to the beat</label>
+      </div>
+      <div data-stage="notes" hidden>
+        <p id="editor-notes-summary" class="status"></p>
+      </div>
+      <div data-stage="circles" hidden>
+        <p id="editor-circles-summary" class="status"></p>
+        <div class="fields">
+          <label for="editor-name">Level name</label>
+          <input id="editor-name" type="text" maxlength="40">
+        </div>
+      </div>
+      <div class="buttons">
+        <button id="btn-editor-go" class="primary">Start round 1: notes</button>
+        <button id="btn-editor-skip" hidden>Skip eye circles</button>
+        <button id="btn-editor-redo" hidden>Redo</button>
+        <button id="btn-editor-cancel">Cancel</button>
+      </div>
     </div>
   </section>
 

@@ -88,6 +88,32 @@ tracker sees you looking at it and reappears somewhere else.
 6. Results show note accuracy (osu!mania style, using the map's OD) and how
    many corner circles you popped on the beat, late, or missed.
 
+#### Making your own level
+
+**Make a level** (next to Play) records a level for the loaded song in two
+rounds, each with the song playing:
+
+1. **Notes**: press <kbd>Space</kbd> wherever you want a note.
+2. **Eye circles**: the song plays again with your notes ticking along;
+   click (or press <kbd>Enter</kbd>) wherever you want an eye circle to land.
+   Each one gets a corner, never the same corner twice in a row, and they're
+   at least 0.45 s apart. This round ends by itself 2 seconds after your
+   last note. You can also skip it and let the circles follow the beat.
+
+<kbd>Esc</kbd> ends a round whenever you like, so you don't have to map the
+whole song; the level is as long as what you recorded. <kbd>Backspace</kbd>
+undoes the last one. With **Snap to the beat** on (when the song has a known
+tempo), notes snap to the nearest quarter or third of a beat and eye circles
+to the nearest half beat, using the song's beat grid. Recorded times take
+your note offset into account, so the level plays back in time for you.
+
+Give it a name and **Save level**: it's saved with the song as a new
+difficulty, listed first and marked "your level". Your levels always play
+on one key with every note exactly as you placed it, and use your own eye
+circles. They're stored as normal `.osu` files with an extra
+`[EyerCircles]` section for the circles (osu! ignores sections it doesn't
+know).
+
 #### How a map becomes one key
 
 Every note in the difficulty is collapsed onto one key, as taps. Notes that
@@ -187,6 +213,7 @@ help.
 | `js/mania/autochart.js`, `js/mania/autochart-worker.js` | Charts for plain songs: onsets, tempo, `.osu` output (analysis runs in a worker) |
 | `js/mania/clock.js` | Audio clock and metronome click |
 | `js/mania/offset.js` | The tap-along note offset test |
+| `js/mania/editor.js` | Level editor recording rounds and saving levels as `.osu` |
 | `js/mania/chart.js` | 4-lane and one-key charts, beat grid, corner circles on the beat |
 | `js/mania/game.js` | Peripheral rhythm gameplay: timing, judgments, gaze rules, drawing |
 | `js/mania/index.js` | Peripheral rhythm screens: map loading, settings, results |

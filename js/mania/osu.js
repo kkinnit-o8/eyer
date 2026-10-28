@@ -2,6 +2,8 @@
 
 const FFLATE_URL = "https://cdn.jsdelivr.net/npm/fflate@0.8.2/esm/browser.js";
 const AUDIO_FILE = /\.(mp3|ogg|wav|m4a|aac|opus|flac)$/i;
+// Levels made in the level editor say so in their Creator field.
+export const EDITOR_CREATOR = "Eyer editor";
 
 /**
  * Reads the chosen files: an .osz/.zip, or loose .osu and audio files.
@@ -54,6 +56,7 @@ export function parseOsu(text) {
     title: "",
     artist: "",
     version: "",
+    creator: "",
     setId: 0,
     mode: 0,
     keys: 4,
@@ -61,6 +64,7 @@ export function parseOsu(text) {
     audioFilename: "",
     timingPoints: [],
     hitObjects: [],
+    circles: [], // eye circles placed in the level editor: { time, corner }
   };
   let section = "";
 
@@ -82,6 +86,7 @@ export function parseOsu(text) {
         case "Title": map.title = value; break;
         case "Artist": map.artist = value; break;
         case "Version": map.version = value; break;
+        case "Creator": map.creator = value; break;
         case "BeatmapSetID": map.setId = Number(value) || 0; break;
         case "CircleSize": map.keys = Math.round(Number(value)); break; // key count in mania
         case "OverallDifficulty": map.od = Number(value); break;
@@ -97,6 +102,10 @@ export function parseOsu(text) {
         // Old files have no "uninherited" column; there, positive beat lengths are BPM changes.
         uninherited: p.length > 6 ? p[6] === 1 : p[1] > 0,
       });
+    } else if (section === "EyerCircles") {
+      // Our own section (osu! ignores unknown ones): time,corner
+      const [time, corner] = line.split(",").map(Number);
+      if (Number.isFinite(time) && Number.isFinite(corner)) map.circles.push({ time, corner: corner & 3 });
     } else if (section === "HitObjects") {
       // x,y,time,type,hitSound,objectParams,hitSample
       const p = line.split(",");
@@ -110,6 +119,8 @@ export function parseOsu(text) {
     }
   }
 
+  map.custom = map.creator === EDITOR_CREATOR;
+  map.circles.sort((a, b) => a.time - b.time);
   map.timingPoints.sort((a, b) => a.time - b.time);
   map.hitObjects.sort((a, b) => a.time - b.time);
   return map;

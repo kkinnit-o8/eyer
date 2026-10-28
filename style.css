@@ -554,6 +554,25 @@ kbd {
   }
 }
 
+.steps {
+  margin: 0 0 12px;
+  padding-left: 1.4em;
+  text-align: left;
+  color: #c8c8c8;
+}
+
+.steps li {
+  margin: 0 0 8px;
+}
+
+.steps strong {
+  color: var(--text);
+}
+
+[data-screen="editor"] .check {
+  justify-content: center;
+}
+
 #mania-status:empty {
   display: none;
 }
@@ -633,7 +652,8 @@ kbd {
 }
 
 select,
-input[type="number"] {
+input[type="number"],
+input[type="text"] {
   width: 100%;
   min-width: 0;
   padding: 8px 10px;
