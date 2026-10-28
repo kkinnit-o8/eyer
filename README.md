@@ -5,8 +5,8 @@ Eye-tracking games that run in the browser using your webcam.
 - **Ball**: a red ball floats in black space. Look at it and it jumps
   somewhere else. You have 15 seconds to catch as many as you can.
 - **Peripheral mania**: 4-key osu!mania with a twist. You can't look at the
-  notes. Your eyes have to stay on circles that land in the corners of the
-  screen on the beat, so you read the notes from the corner of your eye.
+  notes. Your eyes are busy popping hit circles that land in the corners of
+  the screen on the beat, so you read the notes from the corner of your eye.
 
 ## How to play
 
@@ -42,14 +42,18 @@ tracker sees you looking at it and reappears somewhere else.
    - **Note offset**: if notes feel late compared to the music, lower it.
    - **Autoplay**: watch the map play itself, to check how the circles line
      up with the music.
-3. Play with <kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd>. When a
-   circle lands in a corner, move your eyes there. It turns green if you got
-   there on the beat and yellow if late. Your combo, accuracy and last
-   judgment are shown in the circle you're looking at.
-4. Look at the middle for more than 0.3 s and the notes disappear until you
+3. Play with <kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd>. Notes are
+   circles that fall into the round receptors at the bottom.
+4. Corner hit circles appear with an approach ring that closes on the beat.
+   Look at one to pop it: a green burst means on the beat, yellow means late.
+   Once a circle has landed, a timer ring around it runs down. If it runs out
+   before you look, the circle disappears on its own and your streak (combo)
+   resets. Your combo, accuracy and last judgment are shown in the corner
+   where you last popped a circle, which is where your eyes already are.
+5. Look at the middle for more than 0.3 s and the notes disappear until you
    look away. A quick sweep across on the way to another corner is fine.
-5. Results show note accuracy (osu!mania style, using the map's OD) and how
-   well your eyes kept up.
+6. Results show note accuracy (osu!mania style, using the map's OD) and how
+   many corner circles you popped on the beat, late, or missed.
 
 Mania maps with more than 4 keys are squeezed into 4 lanes, and osu!standard
 maps are converted by where each circle sits horizontally.

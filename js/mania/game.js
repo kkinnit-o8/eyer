@@ -1,5 +1,6 @@
 // Peripheral mania: 4-key notes fall down the middle of the screen, but your
-// eyes belong on the circles that land in the corners on the beat. Stare at
+// eyes belong on the hit circles that land in the corners on the beat. Look
+// at one to pop it; let its timer run out and you lose your streak. Stare at
 // the middle and the notes disappear.
 
 import { LANES } from "./chart.js";
@@ -9,12 +10,14 @@ const KEY_LABELS = ["D", "F", "J", "K"];
 const LANE_COLORS = ["#f2f2f2", "#5aa9ff", "#5aa9ff", "#f2f2f2"];
 
 const CENTER_GRACE_MS = 300; // sweeping across the middle is fine; staring isn't
-const LOOK_EARLY_MS = 250; // a corner counts from this long before its beat
-const LOOK_ON_BEAT_MS = 350; // and is "on beat" until this long after (covers tracker lag)
-const TARGET_LINGER_MS = 1500; // how long the last circle stays up
+const LOOK_EARLY_MS = 300; // a corner circle can be popped from this long before its beat
+const LOOK_ON_BEAT_MS = 350; // pops up to this long after the beat are on beat (covers tracker lag)
+const LOOK_TIMER_MS = 900; // longest a landed circle waits for your eyes
 const LEAD_IN_MS = 2500; // quiet time before the first note or circle
 const END_PAD_MS = 1500;
-const FLASH_MS = 200;
+const FLASH_MS = 250;
+const POP_MS = 300;
+const STREAK_LOST_MS = 700;
 
 export const JUDGMENTS = {
   perfect: { label: "Perfect", color: "#ffffff" },
@@ -25,7 +28,7 @@ export const JUDGMENTS = {
   miss: { label: "Miss", color: "#f87171" },
 };
 const HIT_ORDER = ["perfect", "great", "good", "ok", "meh"];
-const LOOK_COLORS = { onBeat: "#4ade80", late: "#fbbf24", missed: "#6b6b6b" };
+const LOOK_COLORS = { onBeat: "#4ade80", late: "#fbbf24" };
 
 // osu!mania hit windows (ms either side) for an Overall Difficulty.
 function hitWindows(od) {
@@ -53,13 +56,21 @@ export class ManiaGame {
     this.autoRelease = new Array(LANES).fill(0);
     this.flashes = new Array(LANES).fill(null);
 
-    // Each circle appears one gap (at most a second) before its beat.
-    this.targets = targets.map((t, i) => ({
-      ...t,
-      approach: Math.min(1000, i ? t.time - targets[i - 1].time : 1000),
-      result: null,
-    }));
+    // Each circle appears one gap (at most a second) before its beat, and
+    // after landing waits until shortly before the next one lands.
+    this.targets = targets.map((t, i) => {
+      const gap = i + 1 < targets.length ? targets[i + 1].time - t.time : Infinity;
+      return {
+        ...t,
+        approach: Math.min(1000, i ? t.time - targets[i - 1].time : 1000),
+        expires: t.time + Math.min(LOOK_TIMER_MS, Math.max(LOOK_ON_BEAT_MS, gap - 150)),
+        result: null,
+        resultAt: 0,
+      };
+    });
     this.nextTarget = 0;
+    this.lastPopped = null; // the combo is drawn where your eyes last were
+    this.streakLostAt = -Infinity;
 
     this.counts = Object.fromEntries(Object.keys(JUDGMENTS).map((j) => [j, 0]));
     this.combo = 0;
@@ -73,7 +84,7 @@ export class ManiaGame {
 
     const first = this.targets[0];
     this.eyesFrom = first ? first.time - first.approach : Infinity;
-    this.eyesUntil = first ? this.targets[this.targets.length - 1].time + TARGET_LINGER_MS : -Infinity;
+    this.eyesUntil = first ? this.targets[this.targets.length - 1].expires + POP_MS : -Infinity;
     const lastNote = notes.reduce((t, n) => Math.max(t, n.end ?? n.time), 0);
     this.endTime = Math.max(lastNote, this.eyesUntil) + END_PAD_MS;
     this.firstEvent = Math.min(notes.length ? notes[0].time - scrollMs : Infinity, this.eyesFrom);
@@ -83,17 +94,20 @@ export class ManiaGame {
 
   resize(width, height) {
     const short = Math.min(width, height);
-    const laneW = Math.round(Math.min(100, Math.max(56, width * 0.055)));
+    // Wide lanes and big notes: easier to read from the corner of your eye.
+    const laneW = Math.round(Math.min(160, Math.max(64, Math.min(width * 0.1, height * 0.2))));
+    const noteR = Math.round(laneW * 0.4);
     const left = Math.round(width / 2 - laneW * 2);
     this.layout = {
       width,
       height,
       laneW,
+      noteR,
       left,
       right: left + laneW * LANES,
-      hitY: Math.round(height - Math.max(90, height * 0.14)),
+      hitY: Math.round(height - noteR - Math.max(36, height * 0.06)),
       inset: Math.min(140, Math.max(56, short * 0.12)),
-      targetR: Math.min(44, Math.max(22, short * 0.045)),
+      targetR: Math.min(56, Math.max(26, short * 0.06)),
     };
   }
 
@@ -218,12 +232,19 @@ export class ManiaGame {
       const t = this.targets[i];
       if (now < t.time - LOOK_EARLY_MS) break;
       if (t.result) continue;
-      const next = this.targets[i + 1];
-      const onBeatUntil = t.time + LOOK_ON_BEAT_MS;
-      const lateUntil = Math.max(onBeatUntil, next ? next.time - LOOK_EARLY_MS : t.time + TARGET_LINGER_MS);
-      if (gaze && this.#inCorner(gaze, t.corner)) t.result = now <= onBeatUntil ? "onBeat" : "late";
-      else if (now > lateUntil) t.result = "missed";
-      if (t.result) this.eyes[t.result]++;
+      if (gaze && this.#inCorner(gaze, t.corner)) {
+        t.result = now <= t.time + LOOK_ON_BEAT_MS ? "onBeat" : "late";
+        this.lastPopped = t;
+      } else if (now > t.expires) {
+        // Its timer ran out: the circle leaves and takes your streak with it.
+        t.result = "missed";
+        this.combo = 0;
+        this.streakLostAt = now;
+      }
+      if (t.result) {
+        t.resultAt = now;
+        this.eyes[t.result]++;
+      }
     }
     while (this.targets[this.nextTarget]?.result) this.nextTarget++;
   }
@@ -280,43 +301,33 @@ export class ManiaGame {
   }
 
   #drawPlayfield(ctx, now) {
-    const { left, laneW, hitY, height } = this.layout;
-    const noteH = Math.max(14, Math.round(laneW * 0.28));
-    const pxPerMs = hitY / this.scrollMs;
+    const { left, laneW, noteR, hitY, height } = this.layout;
+    // Notes enter fully hidden above the screen and reach the receptors on time.
+    const pxPerMs = (hitY + noteR) / this.scrollMs;
 
     ctx.fillStyle = "#0b0b0b";
     ctx.fillRect(left, 0, laneW * LANES, height);
-    ctx.fillStyle = "#1c1c1c";
-    for (let i = 0; i <= LANES; i++) ctx.fillRect(left + i * laneW - 0.5, 0, 1, height);
+    ctx.fillStyle = "#181818";
+    for (let i = 1; i < LANES; i++) ctx.fillRect(left + i * laneW - 0.5, 0, 1, height);
 
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     for (let lane = 0; lane < LANES; lane++) {
-      const x = left + lane * laneW;
+      const x = left + (lane + 0.5) * laneW;
       const color = LANE_COLORS[lane];
 
-      // A glow rising from the receptor, colored by the last judgment.
-      const flash = this.flashes[lane];
-      if (flash && now - flash.at < FLASH_MS) {
-        const h = laneW * 1.6;
-        const g = ctx.createLinearGradient(0, hitY - h, 0, hitY);
-        g.addColorStop(0, "rgba(0, 0, 0, 0)");
-        g.addColorStop(1, withAlpha(JUDGMENTS[flash.judgment].color, 0.5 * (1 - (now - flash.at) / FLASH_MS)));
-        ctx.fillStyle = g;
-        ctx.fillRect(x + 1, hitY - h, laneW - 2, h);
-      }
-
-      roundRect(ctx, x + 5, hitY - noteH / 2, laneW - 10, noteH);
+      // Receptor circle; filled while its key is down.
+      circle(ctx, x, hitY, noteR);
       if (this.pressed[lane]) {
-        ctx.fillStyle = withAlpha(color, 0.3);
+        ctx.fillStyle = withAlpha(color, 0.25);
         ctx.fill();
       }
-      ctx.strokeStyle = withAlpha(color, this.pressed[lane] ? 0.9 : 0.35);
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = withAlpha(color, this.pressed[lane] ? 0.95 : 0.4);
+      ctx.lineWidth = 3;
       ctx.stroke();
       ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
       ctx.font = "600 14px system-ui, sans-serif";
-      ctx.fillText(KEY_LABELS[lane], x + laneW / 2, hitY + noteH + 14);
+      ctx.fillText(KEY_LABELS[lane], x, hitY + noteR + 16);
 
       const q = this.lanes[lane];
       for (let i = Math.max(0, this.next[lane] - 16); i < q.length; i++) {
@@ -327,46 +338,69 @@ export class ManiaGame {
         const dead = n.head === "miss" || n.tail === "miss";
         const yHead = held ? hitY : hitY - (n.time - now) * pxPerMs;
         if (n.end !== null) {
+          // Hold: a rounded bar from the head up to where the hold ends.
           const yTail = hitY - (n.end - now) * pxPerMs;
+          const w = noteR * 1.2;
           ctx.fillStyle = dead ? "#333333" : withAlpha(color, held ? 0.9 : 0.7);
-          ctx.fillRect(x + laneW * 0.22, yTail, laneW * 0.56, yHead - yTail);
+          roundRect(ctx, x - w / 2, yTail - w / 2, w, yHead - yTail + w / 2, w / 2);
+          ctx.fill();
         }
-        if (yHead - noteH > height) continue;
+        if (yHead - noteR > height) continue;
+        circle(ctx, x, yHead, noteR);
         ctx.fillStyle = dead ? "#444444" : color;
-        roundRect(ctx, x + 5, yHead - noteH / 2, laneW - 10, noteH);
         ctx.fill();
+      }
+
+      // A ring bursts out of the receptor, colored by the judgment.
+      const flash = this.flashes[lane];
+      if (flash && now - flash.at < FLASH_MS) {
+        const p = (now - flash.at) / FLASH_MS;
+        circle(ctx, x, hitY, noteR * (1 + 0.45 * p));
+        ctx.strokeStyle = withAlpha(JUDGMENTS[flash.judgment].color, 0.9 * (1 - p));
+        ctx.lineWidth = 6 * (1 - p) + 1;
+        ctx.stroke();
       }
     }
 
     if (this.blinded) {
-      ctx.fillStyle = "rgba(26, 4, 4, 0.97)";
+      ctx.fillStyle = "#1a0404"; // fully opaque: no peeking at the notes
       ctx.fillRect(left, 0, laneW * LANES, height);
       ctx.fillStyle = "#f87171";
-      ctx.font = "700 16px system-ui, sans-serif";
-      ctx.fillText("Eyes on", left + laneW * 2, height / 2 - 11);
-      ctx.fillText("the corners!", left + laneW * 2, height / 2 + 11);
+      ctx.font = "700 22px system-ui, sans-serif";
+      ctx.fillText("Eyes on the corners!", left + laneW * 2, height / 2);
     }
   }
 
   #drawTargets(ctx, now) {
     const R = this.layout.targetR;
-    // The circle you're meant to be on carries the combo, so you never need
-    // to look anywhere else for it.
-    let focus = null;
-    for (const t of this.targets) {
-      if (t.time - t.approach > now) break;
-      if (t.result === "onBeat" || t.result === "late") focus = t;
-    }
-
-    for (let i = Math.max(0, this.nextTarget - 3); i < this.targets.length; i++) {
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (let i = Math.max(0, this.nextTarget - 4); i < this.targets.length; i++) {
       const t = this.targets[i];
       if (now < t.time - t.approach) break;
-      const next = this.targets[i + 1];
-      const goneAt = next ? next.time : t.time + TARGET_LINGER_MS;
-      if (now > goneAt + 250) continue;
-
       const { x, y } = this.#cornerPos(t.corner);
-      ctx.globalAlpha = now > goneAt ? 1 - (now - goneAt) / 250 : 1;
+
+      if (t.result) {
+        const p = (now - t.resultAt) / POP_MS;
+        if (p >= 1) continue;
+        ctx.globalAlpha = 1 - p;
+        if (t.result === "missed") {
+          // Timed out: shrinks away with a cross.
+          circle(ctx, x, y, R * (1 - 0.4 * p));
+          ctx.fillStyle = "#5c1511";
+          ctx.fill();
+          cross(ctx, x, y, R * 0.35, "#f87171");
+        } else {
+          // Looked at: bursts.
+          circle(ctx, x, y, R * (1 + 0.6 * p));
+          ctx.strokeStyle = LOOK_COLORS[t.result];
+          ctx.lineWidth = 5 * (1 - p) + 1;
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+        continue;
+      }
+
       if (now < t.time) {
         // Approach ring closes in on the beat.
         circle(ctx, x, y, R * (1 + 1.8 * ((t.time - now) / t.approach)));
@@ -374,50 +408,46 @@ export class ManiaGame {
         ctx.lineWidth = 2;
         ctx.stroke();
       }
-      if (t.result) {
-        circle(ctx, x, y, R);
-        ctx.fillStyle = "#141414";
-        ctx.fill();
-        ctx.strokeStyle = LOOK_COLORS[t.result];
-        ctx.lineWidth = 3;
-        ctx.stroke();
-      } else if (now >= t.time) {
-        // Landed and still waiting for your eyes.
-        circle(ctx, x, y, R * (1 + 0.06 * Math.sin((now - t.time) / 60)));
+      circle(ctx, x, y, R);
+      if (now >= t.time - LOOK_EARLY_MS) {
+        // Poppable: solid.
         ctx.fillStyle = "#ff2a1f";
         ctx.fill();
       } else {
-        circle(ctx, x, y, R);
+        ctx.fillStyle = "rgba(255, 42, 31, 0.15)";
+        ctx.fill();
         ctx.strokeStyle = "#ff2a1f";
         ctx.lineWidth = 3;
         ctx.stroke();
       }
-
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      if (t === focus) {
-        ctx.fillStyle = "#fff";
-        ctx.font = `700 ${Math.round(R * 0.75)}px system-ui, sans-serif`;
-        ctx.fillText(String(this.combo), x, y);
-        ctx.font = "600 13px system-ui, sans-serif";
-        ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-        ctx.fillText(`${(this.accuracy * 100).toFixed(1)}%`, x, y + R + 16);
-        if (this.lastJudgment) {
-          ctx.fillStyle = JUDGMENTS[this.lastJudgment].color;
-          ctx.fillText(JUDGMENTS[this.lastJudgment].label, x, y + R + 33);
-        }
-      } else if (t.result === "missed") {
-        ctx.strokeStyle = "#6b6b6b";
-        ctx.lineWidth = 3;
-        const d = R * 0.35;
+      if (now > t.time) {
+        // Its timer: when this arc runs out, the circle leaves without you.
+        const left = 1 - (now - t.time) / (t.expires - t.time);
         ctx.beginPath();
-        ctx.moveTo(x - d, y - d);
-        ctx.lineTo(x + d, y + d);
-        ctx.moveTo(x + d, y - d);
-        ctx.lineTo(x - d, y + d);
+        ctx.arc(x, y, R + 8, -Math.PI / 2, -Math.PI / 2 + left * Math.PI * 2);
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+        ctx.lineWidth = 4;
         ctx.stroke();
       }
-      ctx.globalAlpha = 1;
+    }
+    this.#drawStreak(ctx, now);
+  }
+
+  // Combo, accuracy and last judgment sit where you last popped a circle,
+  // which is where your eyes are, so you never need to look at the middle.
+  #drawStreak(ctx, now) {
+    if (!this.lastPopped) return;
+    const R = this.layout.targetR;
+    const { x, y } = this.#cornerPos(this.lastPopped.corner);
+    ctx.fillStyle = now - this.streakLostAt < STREAK_LOST_MS ? "#f87171" : "rgba(255, 255, 255, 0.9)";
+    ctx.font = `700 ${Math.round(R * 0.8)}px system-ui, sans-serif`;
+    ctx.fillText(String(this.combo), x, y);
+    ctx.font = "600 13px system-ui, sans-serif";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+    ctx.fillText(`${(this.accuracy * 100).toFixed(1)}%`, x, y + R + 18);
+    if (this.lastJudgment) {
+      ctx.fillStyle = JUDGMENTS[this.lastJudgment].color;
+      ctx.fillText(JUDGMENTS[this.lastJudgment].label, x, y + R + 35);
     }
   }
 
@@ -428,11 +458,12 @@ export class ManiaGame {
     ctx.textBaseline = "middle";
     ctx.fillStyle = "#fff";
     ctx.font = "700 22px system-ui, sans-serif";
-    ctx.fillText("Keep your eyes on the corner circles", width / 2, height * 0.38);
+    ctx.fillText("Look at each corner circle to pop it", width / 2, height * 0.38);
     ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
     ctx.font = "16px system-ui, sans-serif";
-    ctx.fillText("Read the notes from the corner of your eye", width / 2, height * 0.38 + 32);
-    ctx.fillText("D  F  J  K", width / 2, height * 0.38 + 60);
+    ctx.fillText("Miss one and you lose your streak", width / 2, height * 0.38 + 32);
+    ctx.fillText("Read the notes from the corner of your eye", width / 2, height * 0.38 + 56);
+    ctx.fillText("D  F  J  K", width / 2, height * 0.38 + 84);
     ctx.globalAlpha = 1;
   }
 
@@ -451,10 +482,21 @@ function circle(ctx, x, y, r) {
   ctx.arc(x, y, r, 0, Math.PI * 2);
 }
 
-function roundRect(ctx, x, y, w, h) {
+function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(x, y, w, h, 6);
+  if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
   else ctx.rect(x, y, w, h);
+}
+
+function cross(ctx, x, y, d, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x - d, y - d);
+  ctx.lineTo(x + d, y + d);
+  ctx.moveTo(x + d, y - d);
+  ctx.lineTo(x - d, y + d);
+  ctx.stroke();
 }
 
 function withAlpha(hex, alpha) {
