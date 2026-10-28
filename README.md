@@ -7,7 +7,8 @@ Eye-tracking games that run in the browser using your webcam.
 - **Peripheral rhythm**: play any osu! map on a single key (Space), or as
   4-key mania, with a twist. You can't look at the notes. Your eyes are busy
   popping hit circles that land in the corners of the screen on the beat, so
-  you read the notes from the corner of your eye.
+  you read the notes from the corner of your eye. Or play it with the notes
+  right where you're looking, around the corner circles.
 
 ## How to play
 
@@ -40,11 +41,15 @@ tracker sees you looking at it and reappears somewhere else.
    and the game listens to it and makes an "Auto" chart (see below).
 2. Pick a difficulty and settings:
    - **Game**: **One key** (the default) is played with <kbd>Space</kbd>.
+     **One key, notes at your eyes** is the same chart on <kbd>Space</kbd>,
+     but the notes close in around the corner circle you're looking at
+     instead of in the middle (see step 3).
      **4-key mania** plays the map as it is, with <kbd>D</kbd> <kbd>F</kbd>
      <kbd>J</kbd> <kbd>K</kbd>.
-   - **Note density** (one key): the closest two notes may be: one beat, half
-     a beat, or a quarter beat. See below for how the map is converted.
-   - **Shape** (one key): a box with lines closing in, or a circle with rings
+   - **Note density** (both one-key games): the closest two notes may be: one
+     beat, half a beat, or a quarter beat. See below for how the map is
+     converted.
+   - **Shape** (one key, notes in the middle): a box with lines closing in, or a circle with rings
      closing in.
    - **Corner circles**: one per bar, every 2 beats, or every beat. They are
      placed on the map's own beat grid (its BPM and offset from the timing
@@ -75,8 +80,16 @@ tracker sees you looking at it and reappears somewhere else.
    moment to press, so the timing is easy to catch from the corner of your
    eye. Colors show the beat a note lands on: white on the beat, blue on half
    beats, yellow on quarter beats, purple for anything else. The target
-   pulses on every beat of the song. **4-key mania**: notes are circles that
-   fall into the round receptors at the bottom.
+   pulses on every beat of the song. **Notes at your eyes**: each note is a
+   ring closing in on a target ring around a corner circle, and you press
+   when it touches. A note shows at the circle you should be looking at when
+   it's due: the last one to have landed by then. Notes for the next circle
+   start closing in around it before it lands, so you can see where to look
+   next. The colors and the charge-up are the same as in the middle. There's
+   no no-look middle in this game, since nothing is there. With the eye
+   challenge off in practice, the rings close in on the middle of the screen
+   instead. **4-key mania**: notes are circles that fall into the round
+   receptors at the bottom.
 4. Corner hit circles appear with an approach ring that closes on the beat.
    Look at one to pop it: a green burst means on the beat, yellow means late.
    Once a circle has landed, a timer ring around it runs down. If it runs out
@@ -85,6 +98,7 @@ tracker sees you looking at it and reappears somewhere else.
    where you last popped a circle, which is where your eyes already are.
 5. Look at the middle for more than 0.3 s and the notes disappear until you
    look away. A quick sweep across on the way to another corner is fine.
+   (Not in **notes at your eyes**, where nothing is in the middle.)
 6. Results show note accuracy (osu!mania style, using the map's OD) and how
    many corner circles you popped on the beat, late, or missed.
 
@@ -109,8 +123,8 @@ your note offset into account, so the level plays back in time for you.
 
 Give it a name and **Save level**: it's saved with the song as a new
 difficulty, listed first and marked "your level". Your levels always play
-on one key with every note exactly as you placed it, and use your own eye
-circles. They're stored as normal `.osu` files with an extra
+on one key (with the notes in the middle, or at your eyes) with every note
+exactly as you placed it, and use your own eye circles. They're stored as normal `.osu` files with an extra
 `[EyerCircles]` section for the circles (osu! ignores sections it doesn't
 know).
 

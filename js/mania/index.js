@@ -107,7 +107,8 @@ export class ManiaMode {
     game.value = s.game;
     density.value = s.density;
     const showDensity = () => {
-      for (const el of document.querySelectorAll("[data-one-key]")) el.hidden = s.game !== "onekey";
+      for (const el of document.querySelectorAll("[data-one-key]")) el.hidden = s.game === "mania";
+      for (const el of document.querySelectorAll("[data-middle-cues]")) el.hidden = s.game !== "onekey";
     };
     showDensity();
     game.addEventListener("change", () => {
@@ -444,6 +445,7 @@ export class ManiaMode {
       this.game = new ManiaGame({
         lanes: s.game === "mania" && !this.map.custom ? 4 : 1,
         shape: s.shape,
+        cues: s.game === "eyes" ? "eyes" : "middle",
         notes: notes.map((n) => ({ ...n, time: toGame(n.time), end: n.end === null ? null : toGame(n.end) })),
         targets: targets.map((t) => ({ ...t, time: toGame(t.time) })),
         beats: beats.map((b) => toGame(b.time)),
@@ -541,7 +543,8 @@ export class ManiaMode {
   #finish() {
     this.game.stop();
     const r = this.game.results();
-    const keys = this.game.laneCount === 1 ? "one key" : "4 keys";
+    const atEyes = this.game.cues === "eyes";
+    const keys = this.game.laneCount === 4 ? "4 keys" : atEyes ? "notes at your eyes" : "one key";
     const practice = this.settings.mode === "practice" ? ` · practice ${this.game.rate}×` : "";
     this.game = null;
 
@@ -563,7 +566,8 @@ export class ManiaMode {
       ...row("On the beat", `${e.onBeat} / ${e.total}`, "#4ade80"),
       ...row("Late", e.late, "#fbbf24"),
       ...row("Missed", e.missed, "#a3a3a3"),
-      ...row("Time in the middle", `${(e.centerMs / 1000).toFixed(1)} s`, "#f87171"),
+      // With the notes at your eyes there's nothing in the middle to stay away from.
+      ...(atEyes ? [] : row("Time in the middle", `${(e.centerMs / 1000).toFixed(1)} s`, "#f87171")),
       // Each popped circle can teach the tracker where your eyes really were.
       ...(this.tunedCount() === null ? [] : row("Tracking tuned", `${this.tunedCount() - this.tunedAtStart}×`)),
     );
