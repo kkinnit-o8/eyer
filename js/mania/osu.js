@@ -5,10 +5,10 @@ const AUDIO_FILE = /\.(mp3|ogg|wav|m4a|aac|opus|flac)$/i;
 
 /**
  * Reads the chosen files: an .osz/.zip, or loose .osu and audio files.
- * Returns { maps, audioFiles }, where audioFiles maps lower-case file names
- * to their bytes.
+ * Returns the charts and songs in them as a Map of lower-case file name ->
+ * bytes (everything else, like backgrounds and videos, is skipped).
  */
-export async function readMapFiles(fileList) {
+export async function extractEntries(fileList) {
   const entries = new Map();
   for (const file of fileList) {
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -18,10 +18,18 @@ export async function readMapFiles(fileList) {
       const files = unzipSync(bytes, { filter: (f) => /\.osu$/i.test(f.name) || AUDIO_FILE.test(f.name) });
       for (const [name, data] of Object.entries(files)) entries.set(baseName(name), data);
     } else {
-      entries.set(baseName(file.name), bytes);
+      const name = baseName(file.name);
+      if (name.endsWith(".osu") || AUDIO_FILE.test(name)) entries.set(name, bytes);
     }
   }
+  return entries;
+}
 
+/**
+ * Parses extracted entries. Returns { maps, audioFiles }, where audioFiles
+ * maps lower-case file names to their bytes.
+ */
+export function mapsFromEntries(entries) {
   const decoder = new TextDecoder();
   const maps = [];
   const audioFiles = new Map();
@@ -46,6 +54,7 @@ export function parseOsu(text) {
     title: "",
     artist: "",
     version: "",
+    setId: 0,
     mode: 0,
     keys: 4,
     od: 5,
@@ -73,6 +82,7 @@ export function parseOsu(text) {
         case "Title": map.title = value; break;
         case "Artist": map.artist = value; break;
         case "Version": map.version = value; break;
+        case "BeatmapSetID": map.setId = Number(value) || 0; break;
         case "CircleSize": map.keys = Math.round(Number(value)); break; // key count in mania
         case "OverallDifficulty": map.od = Number(value); break;
       }

@@ -479,6 +479,43 @@ kbd {
   opacity: 0;
 }
 
+#mania-status:empty {
+  display: none;
+}
+
+.song-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 16px 0 8px;
+}
+
+.song-row .dropzone {
+  margin: 0;
+}
+
+.loaded .song-row {
+  flex-direction: row;
+  margin-top: 0;
+}
+
+.loaded .song-row select {
+  flex: 1;
+  min-width: 0;
+}
+
+.map-head {
+  margin: 4px 0 14px;
+}
+
+.map-head .map-title {
+  margin: 0;
+}
+
+.map-head .link {
+  font-size: 0.85rem;
+}
+
 /* Once a map is loaded, make room for the settings. */
 .loaded .about,
 .loaded .dropzone span {
@@ -486,8 +523,8 @@ kbd {
 }
 
 .loaded .dropzone {
-  margin-top: 0;
-  padding: 10px 16px;
+  flex: 0 0 auto;
+  padding: 8px 16px;
 }
 
 .loaded .dropzone strong {

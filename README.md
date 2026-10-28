@@ -33,12 +33,17 @@ tracker sees you looking at it and reappears somewhere else.
 1. Choose an osu! map: an `.osz` file (what you download from the osu!
    website), or a `.osu` file together with its song. Drag and drop works too.
    Nothing is uploaded anywhere; the map is read in your browser.
+   Imported songs are saved in your browser (only the charts and the music),
+   so they're listed under **Saved songs** next time, and the song you played
+   last opens automatically. **Remove from saved songs** deletes one.
 2. Pick a difficulty and settings:
    - **Game**: **One key** (the default) is played with <kbd>Space</kbd>.
      **4-key mania** plays the map as it is, with <kbd>D</kbd> <kbd>F</kbd>
      <kbd>J</kbd> <kbd>K</kbd>.
    - **Note density** (one key): the closest two notes may be: one beat, half
      a beat, or a quarter beat. See below for how the map is converted.
+   - **Shape** (one key): a box with lines closing in, or a circle with rings
+     closing in.
    - **Corner circles**: one per bar, every 2 beats, or every beat. They are
      placed on the map's own beat grid (its BPM and offset from the timing
      points), so they land on the beat. Circles never come closer than
@@ -48,13 +53,16 @@ tracker sees you looking at it and reappears somewhere else.
    - **Note offset**: if notes feel late compared to the music, lower it.
    - **Autoplay**: watch the map play itself, to check how the circles line
      up with the music.
-3. **One key**: a box sits in the middle of the screen. Each note is four
-   lines, one coming in from each side of the screen, closing in on the box.
-   Press <kbd>Space</kbd> when they touch it. The lines are colored by the
-   beat they land on: white on the beat, blue on half beats, yellow on
-   quarter beats, purple for anything else. The box pulses on every beat of
-   the song. **4-key mania**: notes are circles that fall into the round
-   receptors at the bottom.
+3. **One key**: a target (box or circle) sits in the middle of the screen.
+   Each note starts at the edge of the screen and closes in on it: four
+   lines, one from each side, or a ring. Press <kbd>Space</kbd> when it
+   touches the target. Notes get thicker and brighter as they close in, and
+   the target fills up with the next note's color, brightest at the exact
+   moment to press, so the timing is easy to catch from the corner of your
+   eye. Colors show the beat a note lands on: white on the beat, blue on half
+   beats, yellow on quarter beats, purple for anything else. The target
+   pulses on every beat of the song. **4-key mania**: notes are circles that
+   fall into the round receptors at the bottom.
 4. Corner hit circles appear with an approach ring that closes on the beat.
    Look at one to pop it: a green burst means on the beat, yellow means late.
    Once a circle has landed, a timer ring around it runs down. If it runs out
@@ -113,6 +121,18 @@ The in-game tutorial covers this with pictures. In short:
   precise, so the game stays playable on worse cameras.
 - A [One Euro filter](https://gery.casiez.net/1euro/) smooths the gaze point:
   steady while your eyes rest, quick when they jump.
+- **Calibration that corrects itself.** Whenever you pop a corner circle in
+  the rhythm game, your eyes are resting on a known spot. The features from
+  the next half second become an extra calibration sample (worth half a
+  calibration dot), and the model is refitted, so drift from shifting in
+  your seat is corrected as you play. A sample is only taken if the tracker
+  kept your gaze in that corner's quarter of the screen, so a glance
+  elsewhere isn't learned, and only the 40 most recent are kept. The results
+  screen shows how many times tracking was tuned.
+- **Tracking runs in a background worker** (a Web Worker): camera frames are
+  handed over as images and the face model runs there, so it never holds up
+  the game's drawing. If the browser can't run it in a worker, it falls back
+  to the main thread.
 
 Webcam eye tracking is approximate. Expect the ring to be off by a few
 centimetres. Even light, a steady head and recalibrating after you move all
@@ -124,12 +144,15 @@ help.
 | --- | --- |
 | `index.html`, `style.css` | Page and screens |
 | `js/main.js` | Screen flow, main loop, rendering |
-| `js/tracker.js` | Webcam, face tracking, feature extraction |
+| `js/tracker.js` | Webcam, and handing frames to the tracking worker (or tracking on the main thread) |
+| `js/tracker-worker.js` | The background worker that runs face tracking |
+| `js/face.js` | Face model loading and feature extraction, shared by both |
 | `js/calibration.js` | Calibration dot sequence and sample collection |
-| `js/gaze.js` | Gaze regression model and smoothing |
+| `js/gaze.js` | Gaze regression model, smoothing, and learning during play |
 | `js/game.js` | The ball game: ball, hits, timer |
 | `js/ui.js` | Small DOM and storage helpers |
 | `js/mania/osu.js` | Reading `.osz` archives and `.osu` files |
+| `js/mania/library.js` | Saved songs (IndexedDB) |
 | `js/mania/chart.js` | 4-lane and one-key charts, beat grid, corner circles on the beat |
 | `js/mania/game.js` | Peripheral rhythm gameplay: timing, judgments, gaze rules, drawing |
 | `js/mania/index.js` | Peripheral rhythm screens: map loading, settings, results |

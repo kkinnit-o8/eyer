@@ -30,6 +30,7 @@ const HIT_ORDER = ["perfect", "great", "good", "ok", "meh"];
 // One-key lines are colored by the beat they land on: white on the beat,
 // blue on half beats, yellow on quarter beats, purple otherwise.
 const SNAP_COLORS = ["#c084fc", "#fde047", "#5aa9ff", "#f2f2f2", "#f2f2f2"];
+const CHARGE_SHARE = 0.4; // the target starts filling for the last 40% of a note's approach
 const LOOK_COLORS = { onBeat: "#4ade80", late: "#fbbf24" };
 
 // osu!mania hit windows (ms either side) for an Overall Difficulty.
@@ -42,14 +43,20 @@ function judge(error, windows) {
 }
 
 export class ManiaGame {
-  constructor({ lanes = 4, notes, targets, beats = [], od, audio, buffer, scrollMs, offsetMs, autoplay, width, height }) {
+  /**
+   * onLook(x, y, perf) is called when the player pops a corner circle: they
+   * were looking at (x, y) at performance time perf.
+   */
+  constructor({ lanes = 4, shape = "box", notes, targets, beats = [], od, audio, buffer, scrollMs, offsetMs, autoplay, onLook, width, height }) {
     this.audio = audio;
     this.buffer = buffer;
     this.scrollMs = scrollMs;
     this.offsetMs = offsetMs;
     this.autoplay = autoplay;
+    this.onLook = onLook;
     this.windows = hitWindows(od);
     this.keys = KEY_SETS[lanes];
+    this.shape = shape; // one key: "box" or "circle"
 
     this.laneCount = lanes;
     this.lanes = Array.from({ length: lanes }, () => []);
@@ -111,8 +118,8 @@ export class ManiaGame {
       targetR: Math.min(56, Math.max(26, short * 0.06)),
     };
     if (this.laneCount === 1) {
-      // One key: a box in the middle that four lines close in on.
-      const half = Math.round(Math.min(90, Math.max(45, short * 0.09)));
+      // One key: a big target in the middle that each note closes in on.
+      const half = Math.round(Math.min(120, Math.max(56, short * 0.13)));
       this.layout = {
         ...corners,
         cx: width / 2,
@@ -213,6 +220,7 @@ export class ManiaGame {
   }
 
   update(perf, gaze) {
+    this.perf = perf;
     const now = this.songTime(perf);
     const dt = this.lastNow === null ? 0 : Math.min(100, Math.max(0, now - this.lastNow));
     this.now = this.lastNow = now;
@@ -265,6 +273,11 @@ export class ManiaGame {
       if (gaze && this.#inCorner(gaze, t.corner)) {
         t.result = now <= t.time + LOOK_ON_BEAT_MS ? "onBeat" : "late";
         this.lastPopped = t;
+        // A known gaze point the tracker can learn from (never from autoplay's fake gaze).
+        if (!this.autoplay) {
+          const { x, y } = this.#cornerPos(t.corner);
+          this.onLook?.(x, y, this.perf);
+        }
       } else if (now > t.expires) {
         // Its timer ran out: the circle leaves and takes your streak with it.
         t.result = "missed";
@@ -397,94 +410,117 @@ export class ManiaGame {
   }
 
   #drawOneKey(ctx, now) {
-    const { width, height, cx, cy, half } = this.layout;
-    const side = half * 2;
+    const { cx, cy, half } = this.layout;
+    const q = this.lanes[0];
 
-    // Faint rails: the paths the lines travel along.
-    ctx.fillStyle = "#0c0c0c";
-    ctx.fillRect(0, cy - half, width, side);
-    ctx.fillRect(cx - half, 0, side, height);
-
-    // Each note is four lines that start at the screen edges together and
-    // close in on the box, touching its edges exactly on time. Hidden while
-    // you stare at the middle.
+    // Each note is a shape that starts at the edge of the screen and closes
+    // in on the target, thicker and brighter as it nears, landing exactly on
+    // time. The next note also charges the target: it fills up and is
+    // brightest at the moment to press, a big flash the corner of your eye
+    // catches. All of it hides while you stare at the middle.
+    let charge = 0;
+    let chargeColor = SNAP_COLORS[3];
     if (!this.blinded) {
-      const q = this.lanes[0];
       for (let i = Math.max(0, this.next[0] - 8); i < q.length; i++) {
         const n = q[i];
         const dt = n.time - now;
         if (dt > this.scrollMs) break;
         if (n.head && n.head !== "miss") continue;
-        // Fade in at the edges; fade out at the box once the note is late.
-        let alpha = Math.min(1, (this.scrollMs - dt) / (this.scrollMs * 0.15));
-        if (dt < 0) alpha *= Math.max(0, 1 + dt / 200);
-        if (alpha <= 0) continue;
-        const p = Math.max(0, dt / this.scrollMs);
         const color = n.head === "miss" ? JUDGMENTS.miss.color : SNAP_COLORS[n.snap ?? 3];
-        this.#drawLines(ctx, half + p * (cx - half), half + p * (cy - half), color, alpha);
+        const p = Math.max(0, dt / this.scrollMs); // 1 at the screen edge, 0 on time
+        let alpha = Math.min(1, (1 - p) / 0.12) * (0.4 + 0.6 * (1 - p));
+        if (dt < 0) alpha *= Math.max(0, 1 + dt / 150);
+        if (alpha > 0) this.#drawApproach(ctx, p, color, alpha);
+        if (!n.head) {
+          const c = dt >= 0 ? (1 - Math.min(1, dt / (this.scrollMs * CHARGE_SHARE))) ** 2 : Math.max(0, 1 + dt / 120);
+          if (c > charge) {
+            charge = c;
+            chargeColor = color;
+          }
+        }
       }
     }
 
-    // The box pulses on every beat of the song.
+    if (charge > 0) {
+      this.#targetPath(ctx, half);
+      ctx.fillStyle = withAlpha(chargeColor, 0.85 * charge);
+      ctx.fill();
+    }
+    if (this.pressed[0]) {
+      this.#targetPath(ctx, half);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.18)";
+      ctx.fill();
+    }
+
+    // The target's outline pulses on every beat of the song.
     while (this.beatIndex + 1 < this.beats.length && this.beats[this.beatIndex + 1] <= now) this.beatIndex++;
     const sinceBeat = now - (this.beats[this.beatIndex] ?? -Infinity);
     const pulse = sinceBeat >= 0 ? Math.exp(-sinceBeat / 140) : 0;
-    const r = Math.max(6, half * 0.18);
-    roundRect(ctx, cx - half, cy - half, side, side, r);
-    if (this.pressed[0]) {
-      ctx.fillStyle = "rgba(255, 255, 255, 0.14)";
-      ctx.fill();
-    }
     ctx.save();
+    this.#targetPath(ctx, half);
     ctx.shadowColor = "rgba(255, 255, 255, 0.8)";
-    ctx.shadowBlur = 18 * pulse;
-    ctx.strokeStyle = `rgba(255, 255, 255, ${0.45 + 0.4 * pulse})`;
-    ctx.lineWidth = 3;
+    ctx.shadowBlur = 22 * pulse;
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.6 + 0.4 * pulse})`;
+    ctx.lineWidth = 4;
     ctx.stroke();
     ctx.restore();
 
-    // On a judgment the box bursts outward in its color.
+    // On a judgment the target bursts outward in its color.
     const flash = this.flashes[0];
     if (flash && now - flash.at < FLASH_MS) {
       const p = (now - flash.at) / FLASH_MS;
       const color = JUDGMENTS[flash.judgment].color;
-      const grow = half * (1 + 0.4 * p);
-      roundRect(ctx, cx - grow, cy - grow, grow * 2, grow * 2, r);
-      ctx.strokeStyle = withAlpha(color, 0.9 * (1 - p));
-      ctx.lineWidth = 6 * (1 - p) + 1;
-      ctx.stroke();
-      roundRect(ctx, cx - half, cy - half, side, side, r);
-      ctx.fillStyle = withAlpha(color, 0.25 * (1 - p));
+      this.#targetPath(ctx, half);
+      ctx.fillStyle = withAlpha(color, 0.5 * (1 - p));
       ctx.fill();
+      this.#targetPath(ctx, half * (1 + 0.5 * p));
+      ctx.strokeStyle = withAlpha(color, 0.9 * (1 - p));
+      ctx.lineWidth = 8 * (1 - p) + 1;
+      ctx.stroke();
     }
 
-    ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
     ctx.font = "600 14px system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(this.keys.labels[0], cx, cy + half + 22);
+    ctx.fillText(this.keys.labels[0], cx, cy + half + 24);
   }
 
-  // Four separate lines, each as long as the box is wide: top and bottom at
-  // dy from the center, left and right at dx.
-  #drawLines(ctx, dx, dy, color, alpha) {
+  #targetPath(ctx, r) {
+    const { cx, cy } = this.layout;
+    if (this.shape === "circle") circle(ctx, cx, cy, r);
+    else roundRect(ctx, cx - r, cy - r, r * 2, r * 2, r * 0.18);
+  }
+
+  // One note's approach at p (1 = screen edge, 0 = on the target). Box: four
+  // lines, one from each side of the screen, with gaps at the corners. Circle:
+  // a ring that starts out through the corners of the screen.
+  #drawApproach(ctx, p, color, alpha) {
     const { cx, cy, half } = this.layout;
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.strokeStyle = color;
     ctx.shadowColor = color;
-    ctx.shadowBlur = 14;
-    ctx.lineWidth = 5;
+    ctx.shadowBlur = 16;
+    ctx.lineWidth = 3 + 6 * (1 - p);
     ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(cx - half, cy - dy);
-    ctx.lineTo(cx + half, cy - dy);
-    ctx.moveTo(cx - half, cy + dy);
-    ctx.lineTo(cx + half, cy + dy);
-    ctx.moveTo(cx - dx, cy - half);
-    ctx.lineTo(cx - dx, cy + half);
-    ctx.moveTo(cx + dx, cy - half);
-    ctx.lineTo(cx + dx, cy + half);
+    if (this.shape === "circle") {
+      circle(ctx, cx, cy, half + p * (Math.hypot(cx, cy) - half));
+    } else {
+      const dx = half + p * (cx - half);
+      const dy = half + p * (cy - half);
+      const gx = dx * 0.15;
+      const gy = dy * 0.15;
+      ctx.beginPath();
+      ctx.moveTo(cx - dx + gx, cy - dy);
+      ctx.lineTo(cx + dx - gx, cy - dy);
+      ctx.moveTo(cx - dx + gx, cy + dy);
+      ctx.lineTo(cx + dx - gx, cy + dy);
+      ctx.moveTo(cx - dx, cy - dy + gy);
+      ctx.lineTo(cx - dx, cy + dy - gy);
+      ctx.moveTo(cx + dx, cy - dy + gy);
+      ctx.lineTo(cx + dx, cy + dy - gy);
+    }
     ctx.stroke();
     ctx.restore();
   }

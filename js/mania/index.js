@@ -2,25 +2,33 @@
 // settings, play, and results.
 
 import { $, setStatus, readStorage, writeStorage } from "../ui.js";
-import { readMapFiles } from "./osu.js";
+import { extractEntries, mapsFromEntries } from "./osu.js";
+import { listSongs, saveSong, loadSongFiles, touchSong, removeSong } from "./library.js";
 import { buildNotes, buildOneKeyNotes, chartEnd, bpmSections, beatGrid, cornerTargets, bpmSummary } from "./chart.js";
 import { ManiaGame, JUDGMENTS } from "./game.js";
 
 const SETTINGS_KEY = "eyer.mania";
-const DEFAULTS = { game: "onekey", density: "half", rhythm: "bar", scrollMs: 1000, offsetMs: 0, autoplay: false };
+const DEFAULTS = { game: "onekey", density: "half", shape: "box", rhythm: "bar", scrollMs: 1000, offsetMs: 0, autoplay: false };
 const MIN_TARGET_GAP_MS = 450;
 
 export class ManiaMode {
   /**
    * setState(name) switches screens, gaze(now) returns the current gaze
-   * point (or null), exit() goes back to the main menu.
+   * point (or null), exit() goes back to the main menu. learn(x, y, perf)
+   * reports that the player looked at (x, y) (viewport fractions) at perf;
+   * tunedCount() is how often tracking has corrected itself (null without a
+   * camera).
    */
-  constructor({ setState, gaze, exit }) {
+  constructor({ setState, gaze, exit, learn, tunedCount }) {
     this.setState = setState;
     this.gaze = gaze;
     this.exit = exit;
+    this.learn = learn;
+    this.tunedCount = tunedCount;
     this.maps = [];
     this.audioFiles = new Map();
+    this.song = null; // { id, title, artist, addedAt, playedAt } of the loaded song
+    this.library = []; // saved songs
     this.buffers = new Map(); // decoded audio, by file name
     this.map = null;
     this.notes = [];
@@ -36,8 +44,11 @@ export class ManiaMode {
     this.#wire();
   }
 
-  open() {
+  async open() {
     this.setState("mania-menu");
+    await this.#refreshLibrary();
+    // Pick up where you left off: the song you played last.
+    if (!this.map && this.library.length) this.#loadSaved(this.library[0].id);
   }
 
   // ---- Map loading and settings -----------------------------------------
@@ -67,6 +78,17 @@ export class ManiaMode {
     });
 
     $("mania-diff").addEventListener("change", (e) => this.#select(Number(e.target.value)));
+    $("mania-library").addEventListener("change", (e) => {
+      if (e.target.value) this.#loadSaved(e.target.value);
+    });
+    $("btn-mania-remove").addEventListener("click", async () => {
+      try {
+        await removeSong(this.song.id);
+      } catch (err) {
+        console.error(err);
+      }
+      await this.#refreshLibrary();
+    });
 
     const game = $("mania-game");
     const density = $("mania-density");
@@ -86,6 +108,12 @@ export class ManiaMode {
       s.density = density.value;
       this.#save();
       this.#chart();
+    });
+    const shape = $("mania-shape");
+    shape.value = s.shape;
+    shape.addEventListener("change", () => {
+      s.shape = shape.value;
+      this.#save();
     });
 
     const rhythm = $("mania-rhythm");
@@ -131,38 +159,96 @@ export class ManiaMode {
     writeStorage(SETTINGS_KEY, JSON.stringify(this.settings));
   }
 
+  // Map files the player picked or dropped: show them and save the song.
   async #load(files) {
     const status = $("mania-status");
     setStatus(status, "Reading map…");
+    let entries;
     try {
-      const { maps, audioFiles } = await readMapFiles(files);
-      if (!maps.length) throw new Error("No osu! difficulties with notes in that file.");
-      // Real 4K mania charts first, then other key counts, then converts;
-      // easiest first within each group.
-      const rank = (m) => (m.mode === 3 ? (m.keys === 4 ? 0 : 1) : 2);
-      maps.sort((a, b) => rank(a) - rank(b) || a.hitObjects.length - b.hitObjects.length);
-      this.maps = maps;
-      this.audioFiles = audioFiles;
-      this.buffers.clear();
-
-      const select = $("mania-diff");
-      select.replaceChildren(
-        ...maps.map((m, i) => {
-          const kind = m.mode === 3 ? `${m.keys}K mania` : "osu!standard";
-          return new Option(`${m.version || "Normal"} (${kind}, ${m.hitObjects.length} notes)`, String(i));
-        }),
-      );
-      $("mania-title").textContent = [maps[0].artist, maps[0].title].filter(Boolean).join(" - ") || "Untitled";
-      $("mania-map").hidden = false;
-      $("mania-drop").querySelector("strong").textContent = "Choose another map";
-      $("mania-drop").closest(".panel").classList.add("loaded");
+      entries = await extractEntries(files);
+      this.#use(entries, null);
       setStatus(status, "");
-      this.#select(0);
-      $("btn-mania-start").focus({ preventScroll: true });
     } catch (err) {
       console.error(err);
       setStatus(status, err.message || "Couldn't read that file.", "bad");
+      return;
     }
+    try {
+      await saveSong(this.song, entries);
+    } catch (err) {
+      console.warn(err);
+      setStatus(status, "Couldn't save this song for next time.", "warn");
+    }
+    await this.#refreshLibrary();
+  }
+
+  async #loadSaved(id) {
+    const status = $("mania-status");
+    setStatus(status, "Loading song…");
+    try {
+      this.#use(await loadSongFiles(id), this.library.find((s) => s.id === id));
+      setStatus(status, "");
+    } catch (err) {
+      console.error(err);
+      setStatus(status, "Couldn't load that saved song.", "bad");
+    }
+    await this.#refreshLibrary();
+  }
+
+  // Shows the difficulties in these files. song is the saved record, or null
+  // for a fresh import.
+  #use(entries, song) {
+    const { maps, audioFiles } = mapsFromEntries(entries);
+    if (!maps.length) throw new Error("No osu! difficulties with notes in that file.");
+    // Real 4K mania charts first, then other key counts, then converts;
+    // easiest first within each group.
+    const rank = (m) => (m.mode === 3 ? (m.keys === 4 ? 0 : 1) : 2);
+    maps.sort((a, b) => rank(a) - rank(b) || a.hitObjects.length - b.hitObjects.length);
+    this.maps = maps;
+    this.audioFiles = audioFiles;
+    this.buffers.clear();
+
+    const { artist, title, setId } = maps[0];
+    const now = Date.now();
+    this.song = song ?? {
+      id: setId ? `osu-${setId}` : `${artist} - ${title}`.toLowerCase(),
+      title,
+      artist,
+      addedAt: now,
+      playedAt: now,
+    };
+
+    const select = $("mania-diff");
+    select.replaceChildren(
+      ...maps.map((m, i) => {
+        const kind = m.mode === 3 ? `${m.keys}K mania` : "osu!standard";
+        return new Option(`${m.version || "Normal"} (${kind}, ${m.hitObjects.length} notes)`, String(i));
+      }),
+    );
+    $("mania-title").textContent = [artist, title].filter(Boolean).join(" - ") || "Untitled";
+    $("mania-map").hidden = false;
+    $("mania-drop").querySelector("strong").textContent = "Add a map";
+    $("mania-drop").closest(".panel").classList.add("loaded");
+    this.#select(0);
+    $("btn-mania-start").focus({ preventScroll: true });
+  }
+
+  async #refreshLibrary() {
+    try {
+      this.library = await listSongs();
+    } catch (err) {
+      console.warn("Saved songs unavailable.", err);
+      this.library = [];
+    }
+    const saved = this.song && this.library.some((s) => s.id === this.song.id);
+    const select = $("mania-library");
+    select.replaceChildren(
+      new Option(`Saved songs (${this.library.length})`, ""),
+      ...this.library.map((s) => new Option([s.artist, s.title].filter(Boolean).join(" - ") || "Untitled", s.id)),
+    );
+    select.value = saved ? this.song.id : "";
+    select.hidden = !this.library.length;
+    $("btn-mania-remove").hidden = !saved;
   }
 
   #select(index) {
@@ -238,6 +324,7 @@ export class ManiaMode {
       const targets = cornerTargets(beats, this.settings.rhythm, first - 1500, this.end);
       this.game = new ManiaGame({
         lanes: this.settings.game === "mania" ? 4 : 1,
+        shape: this.settings.shape,
         notes: this.notes,
         targets,
         beats: beats.map((b) => b.time),
@@ -247,10 +334,13 @@ export class ManiaMode {
         scrollMs: this.settings.scrollMs,
         offsetMs: this.settings.offsetMs,
         autoplay: this.settings.autoplay,
+        onLook: (x, y, perf) => this.learn(x / this.width, y / this.height, perf),
         width: this.width,
         height: this.height,
       });
+      this.tunedAtStart = this.tunedCount();
       this.game.start();
+      if (this.library.some((s) => s.id === this.song.id)) touchSong(this.song).catch(() => {});
       this.setState("mania");
     } catch (err) {
       console.error(err);
@@ -331,6 +421,8 @@ export class ManiaMode {
       ...row("Late", e.late, "#fbbf24"),
       ...row("Missed", e.missed, "#a3a3a3"),
       ...row("Time in the middle", `${(e.centerMs / 1000).toFixed(1)} s`, "#f87171"),
+      // Each popped circle can teach the tracker where your eyes really were.
+      ...(this.tunedCount() === null ? [] : row("Tracking tuned", `${this.tunedCount() - this.tunedAtStart}×`)),
     );
     this.setState("mania-results");
   }

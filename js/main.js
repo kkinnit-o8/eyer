@@ -9,6 +9,10 @@ import { $, setStatus, readStorage, writeStorage } from "./ui.js";
 const MOUSE_MODE = new URLSearchParams(location.search).has("mouse");
 const COUNTDOWN_MS = 3000;
 const FACE_LOST_MS = 600;
+// After popping a corner circle, eyes rest on it: learn from this window.
+const LEARN_FROM_MS = 150;
+const LEARN_TO_MS = 600;
+const LEARN_WAIT_MS = 400; // let late tracking results for the window arrive
 const BEST_KEY = "eyer.best";
 const TUTORIAL_KEY = "eyer.tutorialSeen";
 
@@ -37,6 +41,7 @@ const app = {
   showGaze: false,
   faceSeenAt: -Infinity,
   mouse: null,
+  pendingLooks: [], // known gaze points waiting to be learned from
   tutorialStep: 0,
   tutorialReturn: "intro",
 };
@@ -45,6 +50,10 @@ const mania = new ManiaMode({
   setState: (state) => setState(state),
   gaze: (now) => currentGaze(now),
   exit: () => setState("check"),
+  learn: (x, y, at) => {
+    if (app.gaze) app.pendingLooks.push({ target: { x, y }, from: at + LEARN_FROM_MS, to: at + LEARN_TO_MS });
+  },
+  tunedCount: () => (app.gaze ? app.gaze.learnedTotal : null),
 });
 
 function setState(state, { focus = true } = {}) {
@@ -159,7 +168,8 @@ function finishCalibration() {
   }
 
   const model = fitGazeModel(data.rows, data.targets);
-  app.gaze = new GazeEstimator(model);
+  app.gaze = new GazeEstimator(model, data);
+  app.pendingLooks = [];
 
   const { width: W, height: H } = app;
   const errors = model.looErrors.map((e) => Math.hypot(e.x * W, e.y * H));
@@ -213,15 +223,17 @@ function onTrackerFrame(result, now) {
   if (result.face) app.faceSeenAt = now;
   if (app.state === "setup") updateSetup(result, now);
   if (!result.features) return;
-  if (app.state === "calibrating") app.calibration.addSample(result.features, now);
-  app.gaze?.update(result.features, now, app.width, app.height);
+  // Time the features by when the camera frame was captured.
+  const t = result.time ?? now;
+  if (app.state === "calibrating") app.calibration.addSample(result.features, t);
+  app.gaze?.update(result.features, t, app.width, app.height);
 }
 
 function updateSetup(result, now) {
-  app.tracker.drawPreview($("cam-overlay"), result.landmarks);
+  app.tracker.drawPreview($("cam-overlay"), result.preview);
   const status = $("face-status");
   if (result.face) {
-    const size = app.tracker.faceSize(result.landmarks);
+    const size = result.size;
     if (size < 0.12) setStatus(status, "Move a little closer to the camera.", "warn");
     else if (size > 0.55) setStatus(status, "Move back a little.", "warn");
     else setStatus(status, "Face found. You're ready.", "ok");
@@ -312,11 +324,22 @@ function drawGazeRing(gaze) {
   ctx.stroke();
 }
 
+// Self-correcting calibration: once a look's window has passed, learn from
+// it if the estimated gaze stayed in the same quarter of the screen.
+function learnFromLooks(now) {
+  while (app.pendingLooks.length && now > app.pendingLooks[0].to + LEARN_WAIT_MS) {
+    const { target, from, to } = app.pendingLooks.shift();
+    const sameQuarter = (p) => p.x < 0.5 === target.x < 0.5 && p.y < 0.5 === target.y < 0.5;
+    app.gaze?.learn(target, from, to, sameQuarter);
+  }
+}
+
 function loop(now) {
   if (app.tracker) {
     const result = app.tracker.detect(now);
     if (result) onTrackerFrame(result, now);
   }
+  learnFromLooks(now);
   step(now);
   draw(now);
   requestAnimationFrame(loop);

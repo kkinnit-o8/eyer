@@ -188,14 +188,20 @@
     <div class="panel wide">
       <h2>Peripheral rhythm</h2>
       <p class="hint about">Notes fall down the middle, but you can't look at them. Hit circles land in the corners on the beat: look at each one to pop it before its timer runs out, or you lose your streak. Read the notes from the corner of your eye. Stare at the middle and the notes disappear.</p>
-      <label id="mania-drop" class="dropzone">
-        <input id="mania-file" type="file" accept=".osz,.zip,.osu,.mp3,.ogg,.wav" multiple>
-        <strong>Choose an osu! map</strong>
-        <span>.osz file, or drop it here</span>
-      </label>
+      <div class="song-row">
+        <select id="mania-library" aria-label="Saved songs" hidden></select>
+        <label id="mania-drop" class="dropzone">
+          <input id="mania-file" type="file" accept=".osz,.zip,.osu,.mp3,.ogg,.wav" multiple>
+          <strong>Choose an osu! map</strong>
+          <span>.osz file, or drop it here</span>
+        </label>
+      </div>
       <p id="mania-status" class="status" role="status"></p>
       <div id="mania-map" hidden>
-        <p id="mania-title" class="map-title"></p>
+        <div class="map-head">
+          <p id="mania-title" class="map-title"></p>
+          <button id="btn-mania-remove" class="link" hidden>Remove from saved songs</button>
+        </div>
         <div class="fields">
           <label for="mania-diff">Difficulty</label>
           <select id="mania-diff"></select>
@@ -209,6 +215,11 @@
             <option value="beat">Every beat at most</option>
             <option value="half">Half beats at most</option>
             <option value="all">All rhythms (quarter beats)</option>
+          </select>
+          <label for="mania-shape" data-one-key>Shape</label>
+          <select id="mania-shape" data-one-key>
+            <option value="box">Box, with lines closing in</option>
+            <option value="circle">Circle, with rings closing in</option>
           </select>
           <label for="mania-rhythm">Corner circles</label>
           <select id="mania-rhythm">

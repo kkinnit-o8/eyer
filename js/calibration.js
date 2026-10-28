@@ -1,13 +1,14 @@
 // Calibration: a dot travels to a series of points. While the player looks at
 // each one we record tracker features, giving (features, screen point) pairs.
 
-import { FEATURE_KEYS } from "./tracker.js";
-import { BLINK_THRESHOLD } from "./gaze.js";
+import { BLINK_THRESHOLD, medianFeatures } from "./gaze.js";
 
 const INTRO_MS = 2000; // first dot waits so the player can read the reminder
 const MOVE_MS = 450; // travel time between points
 const DWELL_MS = 1100; // time on each point
 const SETTLE_MS = 450; // ignore the start of each dwell while the eyes land
+const LATE_MS = 400; // tracking results can arrive this long after their frame
+const EXTEND_MS = 1500; // on slow machines a dot waits up to this much longer for samples
 const MIN_SAMPLES = 4;
 const MIN_POINTS = 9;
 
@@ -33,6 +34,7 @@ export class Calibration {
     this.queue = makePoints().map((p) => ({ ...p, samples: [], retried: false }));
     this.total = this.queue.length;
     this.finished = [];
+    this.awaiting = []; // dwelled points whose last tracking results may still arrive
     this.index = 0;
     this.prev = this.queue[0];
     this.phase = "intro";
@@ -43,27 +45,47 @@ export class Calibration {
     return this.phase === "done";
   }
 
-  addSample(features, now) {
-    if (this.phase !== "dwell" || now - this.phaseStart < SETTLE_MS) return;
+  /** Adds features from a camera frame captured at time t to the dot shown then. */
+  addSample(features, t) {
     if (features.blink > BLINK_THRESHOLD) return;
-    this.queue[this.index].samples.push(features);
+    const current = this.phase === "dwell" ? [this.queue[this.index]] : [];
+    const point = [...current, ...this.awaiting].find((p) => t >= p.from && t <= p.to);
+    point?.samples.push(features);
   }
 
   update(now) {
-    const elapsed = now - this.phaseStart;
-    if (this.phase === "intro" && elapsed >= INTRO_MS) this.#setPhase("dwell", now);
-    else if (this.phase === "move" && elapsed >= MOVE_MS) this.#setPhase("dwell", now);
-    else if (this.phase === "dwell" && elapsed >= DWELL_MS) {
-      const point = this.queue[this.index];
+    // Judge dots once their last tracking results have had time to arrive.
+    for (const point of [...this.awaiting]) {
+      if (now < point.to + LATE_MS) continue;
+      this.awaiting.splice(this.awaiting.indexOf(point), 1);
       if (point.samples.length >= MIN_SAMPLES) {
         this.finished.push(point);
       } else if (!point.retried) {
-        // Face was lost or eyes closed: try this point again at the end.
+        // Face was lost or eyes closed: try this dot again at the end.
         this.queue.push({ x: point.x, y: point.y, samples: [], retried: true });
       }
+    }
+
+    const elapsed = now - this.phaseStart;
+    if ((this.phase === "intro" && elapsed >= INTRO_MS) || (this.phase === "move" && elapsed >= MOVE_MS)) {
+      const point = this.queue[this.index];
+      point.from = now + SETTLE_MS;
+      point.to = Infinity;
+      this.#setPhase("dwell", now);
+    } else if (this.phase === "dwell" && elapsed >= DWELL_MS) {
+      const point = this.queue[this.index];
+      // Tracking works but is slow: keep the dot up until it has enough samples.
+      const slow = point.samples.length > 0 && point.samples.length < MIN_SAMPLES;
+      if (slow && elapsed < DWELL_MS + EXTEND_MS) return;
+      point.to = now;
+      this.awaiting.push(point);
       this.prev = point;
       this.index++;
-      this.#setPhase(this.index < this.queue.length ? "move" : "done", now);
+      this.#setPhase(this.index < this.queue.length ? "move" : "wait", now);
+    } else if (this.phase === "wait") {
+      // Out of dots: wait for the last results, which may still queue a retry.
+      if (this.index < this.queue.length) this.#setPhase("move", now);
+      else if (!this.awaiting.length) this.#setPhase("done", now);
     }
   }
 
@@ -82,8 +104,8 @@ export class Calibration {
   }
 
   draw(ctx, now, width, height) {
-    if (this.done) return;
     const point = this.queue[this.index];
+    if (!point) return;
     const elapsed = now - this.phaseStart;
     let x = point.x;
     let y = point.y;
@@ -123,16 +145,6 @@ export class Calibration {
     const shown = Math.min(this.index + 1, this.total);
     ctx.fillText(`${shown} / ${this.total}`, width / 2, height - 20);
   }
-}
-
-function medianFeatures(samples) {
-  const out = {};
-  for (const key of FEATURE_KEYS) {
-    const v = samples.map((s) => s[key]).sort((a, b) => a - b);
-    const m = v.length >> 1;
-    out[key] = v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
-  }
-  return out;
 }
 
 function easeInOut(t) {
