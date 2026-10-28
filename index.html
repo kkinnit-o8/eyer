@@ -18,7 +18,7 @@
       <p class="lead">Games you play with your eyes.</p>
       <ul class="modes">
         <li><strong>Ball:</strong> look at the red ball and it jumps somewhere else. Catch as many as you can in 15&nbsp;seconds.</li>
-        <li><strong>Peripheral mania:</strong> play an osu!mania map while your eyes pop hit circles in the corners. The notes are only in the corner of your eye.</li>
+        <li><strong>Peripheral rhythm:</strong> play any osu! map on one key (or as 4-key mania) while your eyes pop hit circles in the corners. The notes are only in the corner of your eye.</li>
       </ul>
       <ul class="tips">
         <li>Your webcam tracks your eyes. The video stays on your device.</li>
@@ -164,7 +164,7 @@
       <p id="accuracy" class="status"></p>
       <div class="buttons">
         <button id="btn-play" class="primary">Ball</button>
-        <button id="btn-mania" class="primary">Peripheral mania</button>
+        <button id="btn-mania" class="primary">Peripheral rhythm</button>
         <button id="btn-recalibrate-check">Recalibrate</button>
       </div>
       <p class="hint">Press <kbd>G</kbd> during the game to show or hide the ring. Tracking off? <button class="link" data-open-tutorial>See the tips</button></p>
@@ -186,8 +186,8 @@
 
   <section class="screen" data-screen="mania-menu">
     <div class="panel wide">
-      <h2>Peripheral mania</h2>
-      <p class="hint">4-key notes fall down the middle, but you can't look at them. Hit circles land in the corners on the beat: look at each one to pop it before its timer runs out, or you lose your streak. Read the notes from the corner of your eye. Stare at the middle and the notes disappear.</p>
+      <h2>Peripheral rhythm</h2>
+      <p class="hint about">Notes fall down the middle, but you can't look at them. Hit circles land in the corners on the beat: look at each one to pop it before its timer runs out, or you lose your streak. Read the notes from the corner of your eye. Stare at the middle and the notes disappear.</p>
       <label id="mania-drop" class="dropzone">
         <input id="mania-file" type="file" accept=".osz,.zip,.osu,.mp3,.ogg,.wav" multiple>
         <strong>Choose an osu! map</strong>
@@ -199,6 +199,17 @@
         <div class="fields">
           <label for="mania-diff">Difficulty</label>
           <select id="mania-diff"></select>
+          <label for="mania-game">Game</label>
+          <select id="mania-game">
+            <option value="onekey">One key (Space)</option>
+            <option value="mania">4-key mania (D F J K)</option>
+          </select>
+          <label for="mania-density" data-one-key>Note density</label>
+          <select id="mania-density" data-one-key>
+            <option value="beat">Every beat at most</option>
+            <option value="half">Half beats at most</option>
+            <option value="all">All rhythms (quarter beats)</option>
+          </select>
           <label for="mania-rhythm">Corner circles</label>
           <select id="mania-rhythm">
             <option value="bar">Every bar</option>
@@ -218,7 +229,7 @@
         <button id="btn-mania-start" class="primary" disabled>Play</button>
         <button id="btn-mania-back">Menu</button>
       </div>
-      <p class="hint">Keys <kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd>. <kbd>Esc</kbd> quits a song. If notes feel late, lower the note offset.</p>
+      <p class="hint">One key: <kbd>Space</kbd>. Mania: <kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd>. <kbd>Esc</kbd> quits a song. If notes feel late, lower the note offset.</p>
     </div>
   </section>
 

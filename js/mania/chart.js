@@ -5,6 +5,10 @@ export const LANES = 4;
 export const CORNERS = 4; // 0 top-left, 1 top-right, 2 bottom-left, 3 bottom-right
 const MIN_TARGET_GAP_MS = 450; // eyes can't hop corners much faster than this
 const MIN_BEAT_MS = 200; // halve absurd BPMs (some maps use them as effects)
+const CHORD_MS = 20; // notes this close together are one chord
+const ONE_KEY_MIN_GAP_MS = 90; // never closer than this, whatever the density
+// One-key densities: the closest two notes may be, in beats.
+export const DENSITIES = { beat: 1, half: 0.5, all: 0.25 };
 
 /** Notes as [{ lane, time, end }] sorted by time; end is null for taps. */
 export function buildNotes(map) {
@@ -22,6 +26,62 @@ export function buildNotes(map) {
     busyUntil[lane] = end ?? h.time;
   }
   return notes;
+}
+
+/**
+ * One-key chart: the whole map collapsed onto a single key, as taps. Chords
+ * become one note. Passages denser than the chosen density are thinned,
+ * keeping the notes on the strongest beats (downbeat, beat, half beat,
+ * quarter beat) and then the biggest chords. Notes keep their exact map
+ * times, so they stay in sync with the music.
+ */
+export function buildOneKeyNotes(map, sections, density) {
+  const onsets = [];
+  for (const h of map.hitObjects) {
+    const last = onsets[onsets.length - 1];
+    if (last && h.time - last.time <= CHORD_MS) last.size++;
+    else onsets.push({ time: h.time, size: 1 });
+  }
+  for (const o of onsets) {
+    const s = sectionAt(sections, o.time);
+    o.beatLength = s ? s.beatLength : 500;
+    o.strength = s ? beatStrength(o.time, s) : 0;
+  }
+
+  const kept = []; // sorted by time
+  const ranked = [...onsets].sort((a, b) => b.strength - a.strength || b.size - a.size || a.time - b.time);
+  for (const o of ranked) {
+    // A little slack so notes a few ms off the grid still fit.
+    const gap = Math.max(ONE_KEY_MIN_GAP_MS, o.beatLength * DENSITIES[density] * 0.9);
+    let i = 0;
+    let hi = kept.length;
+    while (i < hi) {
+      const mid = (i + hi) >> 1;
+      if (kept[mid].time < o.time) i = mid + 1;
+      else hi = mid;
+    }
+    if (i > 0 && o.time - kept[i - 1].time < gap) continue;
+    if (i < kept.length && kept[i].time - o.time < gap) continue;
+    kept.splice(i, 0, o);
+  }
+  return kept.map((o) => ({ lane: 0, time: o.time, end: null }));
+}
+
+function sectionAt(sections, time) {
+  let found = sections[0];
+  for (const s of sections) if (s.time <= time) found = s;
+  return found;
+}
+
+// 4 on a downbeat, 3 on a beat, 2 on a half beat, 1 on a quarter, else 0.
+function beatStrength(time, section) {
+  const beats = (time - section.time) / section.beatLength;
+  const tolerance = 25 / section.beatLength; // 25 ms, in beats
+  const onGrid = (div) => Math.abs(beats * div - Math.round(beats * div)) < tolerance * div;
+  if (onGrid(1)) return ((Math.round(beats) % section.meter) + section.meter) % section.meter === 0 ? 4 : 3;
+  if (onGrid(2)) return 2;
+  if (onGrid(4)) return 1;
+  return 0;
 }
 
 /** The time the last note (or hold) ends. */

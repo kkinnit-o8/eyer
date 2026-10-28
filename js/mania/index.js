@@ -1,12 +1,13 @@
-// Peripheral mania mode: loading an osu! map, settings, play, and results.
+// Peripheral rhythm mode (one key, or 4-key mania): loading an osu! map,
+// settings, play, and results.
 
 import { $, setStatus, readStorage, writeStorage } from "../ui.js";
 import { readMapFiles } from "./osu.js";
-import { buildNotes, chartEnd, bpmSections, beatGrid, cornerTargets, bpmSummary } from "./chart.js";
-import { ManiaGame, KEY_CODES, JUDGMENTS } from "./game.js";
+import { buildNotes, buildOneKeyNotes, chartEnd, bpmSections, beatGrid, cornerTargets, bpmSummary } from "./chart.js";
+import { ManiaGame, JUDGMENTS } from "./game.js";
 
 const SETTINGS_KEY = "eyer.mania";
-const DEFAULTS = { rhythm: "bar", scrollMs: 1000, offsetMs: 0, autoplay: false };
+const DEFAULTS = { game: "onekey", density: "half", rhythm: "bar", scrollMs: 1000, offsetMs: 0, autoplay: false };
 const MIN_TARGET_GAP_MS = 450;
 
 export class ManiaMode {
@@ -66,6 +67,26 @@ export class ManiaMode {
     });
 
     $("mania-diff").addEventListener("change", (e) => this.#select(Number(e.target.value)));
+
+    const game = $("mania-game");
+    const density = $("mania-density");
+    game.value = s.game;
+    density.value = s.density;
+    const showDensity = () => {
+      for (const el of document.querySelectorAll("[data-one-key]")) el.hidden = s.game !== "onekey";
+    };
+    showDensity();
+    game.addEventListener("change", () => {
+      s.game = game.value;
+      this.#save();
+      showDensity();
+      this.#chart();
+    });
+    density.addEventListener("change", () => {
+      s.density = density.value;
+      this.#save();
+      this.#chart();
+    });
 
     const rhythm = $("mania-rhythm");
     rhythm.value = s.rhythm;
@@ -127,12 +148,14 @@ export class ManiaMode {
       const select = $("mania-diff");
       select.replaceChildren(
         ...maps.map((m, i) => {
-          const kind = m.mode !== 3 ? "converted to 4K" : m.keys === 4 ? "4K" : `${m.keys}K → 4K`;
+          const kind = m.mode === 3 ? `${m.keys}K mania` : "osu!standard";
           return new Option(`${m.version || "Normal"} (${kind}, ${m.hitObjects.length} notes)`, String(i));
         }),
       );
       $("mania-title").textContent = [maps[0].artist, maps[0].title].filter(Boolean).join(" - ") || "Untitled";
       $("mania-map").hidden = false;
+      $("mania-drop").querySelector("strong").textContent = "Choose another map";
+      $("mania-drop").closest(".panel").classList.add("loaded");
       setStatus(status, "");
       this.#select(0);
       $("btn-mania-start").focus({ preventScroll: true });
@@ -144,9 +167,17 @@ export class ManiaMode {
 
   #select(index) {
     this.map = this.maps[index];
-    this.notes = buildNotes(this.map);
-    this.end = chartEnd(this.notes);
     this.timing = bpmSections(this.map);
+    this.#chart();
+  }
+
+  // Builds the notes for the chosen game: the map as 4-key mania, or
+  // collapsed onto one key.
+  #chart() {
+    if (!this.map) return;
+    const s = this.settings;
+    this.notes = s.game === "mania" ? buildNotes(this.map) : buildOneKeyNotes(this.map, this.timing.sections, s.density);
+    this.end = chartEnd(this.notes);
     this.#showInfo();
     $("btn-mania-start").disabled = !this.#audioName() || !this.notes.length;
   }
@@ -176,13 +207,16 @@ export class ManiaMode {
     let gap = bpm.beatLength * beats;
     while (gap < MIN_TARGET_GAP_MS) gap += bpm.beatLength;
     const holds = this.notes.filter((n) => n.end !== null).length;
+    const notes =
+      this.settings.game === "mania"
+        ? `${this.notes.length} notes${holds ? ` (${holds} holds)` : ""}`
+        : `${this.notes.length} notes on one key (from ${this.map.hitObjects.length})`;
     const minutes = Math.floor(this.end / 60000);
     const seconds = String(Math.floor((this.end % 60000) / 1000)).padStart(2, "0");
     setStatus(
       info,
       `${bpmText}${this.timing.estimated ? " (estimated from the notes)" : ""} · ${bpm.meter}/4 · ${minutes}:${seconds} · ` +
-        `${this.notes.length} notes${holds ? ` (${holds} holds)` : ""}. ` +
-        `A corner circle lands every ${(gap / 1000).toFixed(2)} s.`,
+        `${notes}. A corner circle lands every ${(gap / 1000).toFixed(2)} s.`,
     );
   }
 
@@ -195,12 +229,15 @@ export class ManiaMode {
     this.audio.resume();
     const button = $("btn-mania-start");
     button.disabled = true;
+    // Space is a game key now; it mustn't also press a focused button.
+    document.activeElement?.blur();
     try {
       const buffer = await this.#buffer();
       const beats = beatGrid(this.timing.sections, this.end + 2000);
       const first = this.notes[0].time;
       const targets = cornerTargets(beats, this.settings.rhythm, first - 1500, this.end);
       this.game = new ManiaGame({
+        lanes: this.settings.game === "mania" ? 4 : 1,
         notes: this.notes,
         targets,
         od: this.map.od,
@@ -256,23 +293,26 @@ export class ManiaMode {
       this.open();
       return;
     }
-    const lane = KEY_CODES.indexOf(e.code);
+    const lane = this.game.keyCodes.indexOf(e.code);
     if (lane < 0) return;
     e.preventDefault();
     if (!e.repeat) this.game.keyDown(lane, e.timeStamp);
   }
 
   keyup(e) {
-    const lane = KEY_CODES.indexOf(e.code);
-    if (lane >= 0) this.game.keyUp(lane, e.timeStamp);
+    const lane = this.game.keyCodes.indexOf(e.code);
+    if (lane < 0) return;
+    e.preventDefault();
+    this.game.keyUp(lane, e.timeStamp);
   }
 
   #finish() {
     this.game.stop();
     const r = this.game.results();
+    const keys = this.game.laneCount === 1 ? "one key" : "4 keys";
     this.game = null;
 
-    $("mr-title").textContent = `${this.map.title} [${this.map.version}]`;
+    $("mr-title").textContent = `${this.map.title} [${this.map.version}] · ${keys}`;
     $("mr-acc").textContent = `${(r.accuracy * 100).toFixed(2)}%`;
     const row = (label, value, color) => {
       const dt = Object.assign(document.createElement("dt"), { textContent: label });

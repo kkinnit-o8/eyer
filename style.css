@@ -479,6 +479,21 @@ kbd {
   opacity: 0;
 }
 
+/* Once a map is loaded, make room for the settings. */
+.loaded .about,
+.loaded .dropzone span {
+  display: none;
+}
+
+.loaded .dropzone {
+  margin-top: 0;
+  padding: 10px 16px;
+}
+
+.loaded .dropzone strong {
+  font-size: 0.95rem;
+}
+
 .map-title {
   margin: 4px 0 14px;
   font-size: 1.15rem;
@@ -488,9 +503,9 @@ kbd {
 .fields {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 10px 14px;
+  gap: 8px 14px;
   align-items: center;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
   text-align: left;
 }
 

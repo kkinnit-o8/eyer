@@ -1,13 +1,12 @@
-// Peripheral mania: 4-key notes fall down the middle of the screen, but your
-// eyes belong on the hit circles that land in the corners on the beat. Look
-// at one to pop it; let its timer run out and you lose your streak. Stare at
-// the middle and the notes disappear.
+// Peripheral rhythm: notes fall down the middle of the screen (4 keys, or a
+// single key), but your eyes belong on the hit circles that land in the
+// corners on the beat. Look at one to pop it; let its timer run out and you
+// lose your streak. Stare at the middle and the notes disappear.
 
-import { LANES } from "./chart.js";
-
-export const KEY_CODES = ["KeyD", "KeyF", "KeyJ", "KeyK"];
-const KEY_LABELS = ["D", "F", "J", "K"];
-const LANE_COLORS = ["#f2f2f2", "#5aa9ff", "#5aa9ff", "#f2f2f2"];
+const KEY_SETS = {
+  1: { codes: ["Space"], labels: ["Space"], colors: ["#f2f2f2"] },
+  4: { codes: ["KeyD", "KeyF", "KeyJ", "KeyK"], labels: ["D", "F", "J", "K"], colors: ["#f2f2f2", "#5aa9ff", "#5aa9ff", "#f2f2f2"] },
+};
 
 const CENTER_GRACE_MS = 300; // sweeping across the middle is fine; staring isn't
 const LOOK_EARLY_MS = 300; // a corner circle can be popped from this long before its beat
@@ -40,21 +39,23 @@ function judge(error, windows) {
 }
 
 export class ManiaGame {
-  constructor({ notes, targets, od, audio, buffer, scrollMs, offsetMs, autoplay, width, height }) {
+  constructor({ lanes = 4, notes, targets, od, audio, buffer, scrollMs, offsetMs, autoplay, width, height }) {
     this.audio = audio;
     this.buffer = buffer;
     this.scrollMs = scrollMs;
     this.offsetMs = offsetMs;
     this.autoplay = autoplay;
     this.windows = hitWindows(od);
+    this.keys = KEY_SETS[lanes];
 
-    this.lanes = Array.from({ length: LANES }, () => []);
+    this.laneCount = lanes;
+    this.lanes = Array.from({ length: lanes }, () => []);
     for (const n of notes) this.lanes[n.lane].push({ ...n, head: null, tail: null });
-    this.next = new Array(LANES).fill(0); // first note per lane whose head is unjudged
-    this.holds = new Array(LANES).fill(null); // hold note being held, per lane
-    this.pressed = new Array(LANES).fill(false);
-    this.autoRelease = new Array(LANES).fill(0);
-    this.flashes = new Array(LANES).fill(null);
+    this.next = new Array(lanes).fill(0); // first note per lane whose head is unjudged
+    this.holds = new Array(lanes).fill(null); // hold note being held, per lane
+    this.pressed = new Array(lanes).fill(false);
+    this.autoRelease = new Array(lanes).fill(0);
+    this.flashes = new Array(lanes).fill(null);
 
     // Each circle appears one gap (at most a second) before its beat, and
     // after landing waits until shortly before the next one lands.
@@ -92,19 +93,31 @@ export class ManiaGame {
     this.resize(width, height);
   }
 
+  get keyCodes() {
+    return this.keys.codes;
+  }
+
   resize(width, height) {
     const short = Math.min(width, height);
     // Wide lanes and big notes: easier to read from the corner of your eye.
-    const laneW = Math.round(Math.min(160, Math.max(64, Math.min(width * 0.1, height * 0.2))));
+    const laneW =
+      this.laneCount === 1
+        ? Math.round(Math.min(220, Math.max(100, Math.min(width * 0.14, height * 0.28))))
+        : Math.round(Math.min(160, Math.max(64, Math.min(width * 0.1, height * 0.2))));
     const noteR = Math.round(laneW * 0.4);
-    const left = Math.round(width / 2 - laneW * 2);
+    const left = Math.round(width / 2 - (laneW * this.laneCount) / 2);
+    const right = left + laneW * this.laneCount;
     this.layout = {
       width,
       height,
       laneW,
       noteR,
       left,
-      right: left + laneW * LANES,
+      right,
+      // No looking here: the playfield, and at least the middle 30% of the
+      // screen so a narrow single lane can't be watched from right beside it.
+      middleLeft: Math.min(left, width * 0.35),
+      middleRight: Math.max(right, width * 0.65),
       hitY: Math.round(height - noteR - Math.max(36, height * 0.06)),
       inset: Math.min(140, Math.max(56, short * 0.12)),
       targetR: Math.min(56, Math.max(26, short * 0.06)),
@@ -191,7 +204,7 @@ export class ManiaGame {
       gaze = this.#autoGaze(now);
     }
 
-    for (let lane = 0; lane < LANES; lane++) {
+    for (let lane = 0; lane < this.laneCount; lane++) {
       const q = this.lanes[lane];
       while (q[this.next[lane]] && now - q[this.next[lane]].time > this.windows.meh) {
         const note = q[this.next[lane]++];
@@ -223,7 +236,7 @@ export class ManiaGame {
   #updateEyes(now, gaze, dt) {
     // The middle is off limits while the corner circles are running.
     const rules = now >= this.eyesFrom && now <= this.eyesUntil;
-    const inMiddle = rules && gaze && gaze.x >= this.layout.left && gaze.x <= this.layout.right;
+    const inMiddle = rules && gaze && gaze.x >= this.layout.middleLeft && gaze.x <= this.layout.middleRight;
     this.centerFor = inMiddle ? this.centerFor + dt : 0;
     this.blinded = this.centerFor > CENTER_GRACE_MS;
     if (this.blinded) this.eyes.centerMs += dt;
@@ -250,10 +263,10 @@ export class ManiaGame {
   }
 
   // Tracking is rough, so a corner counts as "looked at" anywhere in its
-  // quarter of the screen, outside the playfield.
+  // quarter of the screen, outside the middle.
   #inCorner(gaze, corner) {
-    const { left, right, height } = this.layout;
-    const side = corner % 2 ? gaze.x > right : gaze.x < left;
+    const { middleLeft, middleRight, height } = this.layout;
+    const side = corner % 2 ? gaze.x > middleRight : gaze.x < middleLeft;
     const half = corner < 2 ? gaze.y < height / 2 : gaze.y >= height / 2;
     return side && half;
   }
@@ -264,7 +277,7 @@ export class ManiaGame {
   }
 
   #autoplay(now) {
-    for (let lane = 0; lane < LANES; lane++) {
+    for (let lane = 0; lane < this.laneCount; lane++) {
       const note = this.lanes[lane][this.next[lane]];
       if (note && note.time <= now) {
         this.next[lane]++;
@@ -306,15 +319,15 @@ export class ManiaGame {
     const pxPerMs = (hitY + noteR) / this.scrollMs;
 
     ctx.fillStyle = "#0b0b0b";
-    ctx.fillRect(left, 0, laneW * LANES, height);
+    ctx.fillRect(left, 0, laneW * this.laneCount, height);
     ctx.fillStyle = "#181818";
-    for (let i = 1; i < LANES; i++) ctx.fillRect(left + i * laneW - 0.5, 0, 1, height);
+    for (let i = 1; i < this.laneCount; i++) ctx.fillRect(left + i * laneW - 0.5, 0, 1, height);
 
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    for (let lane = 0; lane < LANES; lane++) {
+    for (let lane = 0; lane < this.laneCount; lane++) {
       const x = left + (lane + 0.5) * laneW;
-      const color = LANE_COLORS[lane];
+      const color = this.keys.colors[lane];
 
       // Receptor circle; filled while its key is down.
       circle(ctx, x, hitY, noteR);
@@ -327,7 +340,7 @@ export class ManiaGame {
       ctx.stroke();
       ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
       ctx.font = "600 14px system-ui, sans-serif";
-      ctx.fillText(KEY_LABELS[lane], x, hitY + noteR + 16);
+      ctx.fillText(this.keys.labels[lane], x, hitY + noteR + 16);
 
       const q = this.lanes[lane];
       for (let i = Math.max(0, this.next[lane] - 16); i < q.length; i++) {
@@ -363,11 +376,12 @@ export class ManiaGame {
     }
 
     if (this.blinded) {
+      const { middleLeft, middleRight } = this.layout;
       ctx.fillStyle = "#1a0404"; // fully opaque: no peeking at the notes
-      ctx.fillRect(left, 0, laneW * LANES, height);
+      ctx.fillRect(middleLeft, 0, middleRight - middleLeft, height);
       ctx.fillStyle = "#f87171";
       ctx.font = "700 22px system-ui, sans-serif";
-      ctx.fillText("Eyes on the corners!", left + laneW * 2, height / 2);
+      ctx.fillText("Eyes on the corners!", (middleLeft + middleRight) / 2, height / 2);
     }
   }
 
@@ -463,7 +477,7 @@ export class ManiaGame {
     ctx.font = "16px system-ui, sans-serif";
     ctx.fillText("Miss one and you lose your streak", width / 2, height * 0.38 + 32);
     ctx.fillText("Read the notes from the corner of your eye", width / 2, height * 0.38 + 56);
-    ctx.fillText("D  F  J  K", width / 2, height * 0.38 + 84);
+    ctx.fillText(this.keys.labels.join("  "), width / 2, height * 0.38 + 84);
     ctx.globalAlpha = 1;
   }
 

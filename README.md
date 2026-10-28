@@ -4,9 +4,10 @@ Eye-tracking games that run in the browser using your webcam.
 
 - **Ball**: a red ball floats in black space. Look at it and it jumps
   somewhere else. You have 15 seconds to catch as many as you can.
-- **Peripheral mania**: 4-key osu!mania with a twist. You can't look at the
-  notes. Your eyes are busy popping hit circles that land in the corners of
-  the screen on the beat, so you read the notes from the corner of your eye.
+- **Peripheral rhythm**: play any osu! map on a single key (Space), or as
+  4-key mania, with a twist. You can't look at the notes. Your eyes are busy
+  popping hit circles that land in the corners of the screen on the beat, so
+  you read the notes from the corner of your eye.
 
 ## How to play
 
@@ -27,12 +28,17 @@ Eye-tracking games that run in the browser using your webcam.
 After a 3-second countdown, look at the ball. It vanishes the instant the
 tracker sees you looking at it and reappears somewhere else.
 
-### Peripheral mania
+### Peripheral rhythm
 
 1. Choose an osu! map: an `.osz` file (what you download from the osu!
    website), or a `.osu` file together with its song. Drag and drop works too.
    Nothing is uploaded anywhere; the map is read in your browser.
 2. Pick a difficulty and settings:
+   - **Game**: **One key** (the default) puts one big note lane in the middle,
+     played with <kbd>Space</kbd>. **4-key mania** plays the map as it is,
+     with <kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd>.
+   - **Note density** (one key): the closest two notes may be: one beat, half
+     a beat, or a quarter beat. See below for how the map is converted.
    - **Corner circles**: one per bar, every 2 beats, or every beat. They are
      placed on the map's own beat grid (its BPM and offset from the timing
      points), so they land on the beat. Circles never come closer than
@@ -42,8 +48,7 @@ tracker sees you looking at it and reappears somewhere else.
    - **Note offset**: if notes feel late compared to the music, lower it.
    - **Autoplay**: watch the map play itself, to check how the circles line
      up with the music.
-3. Play with <kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd>. Notes are
-   circles that fall into the round receptors at the bottom.
+3. Notes are circles that fall into the round receptors at the bottom.
 4. Corner hit circles appear with an approach ring that closes on the beat.
    Look at one to pop it: a green burst means on the beat, yellow means late.
    Once a circle has landed, a timer ring around it runs down. If it runs out
@@ -55,8 +60,20 @@ tracker sees you looking at it and reappears somewhere else.
 6. Results show note accuracy (osu!mania style, using the map's OD) and how
    many corner circles you popped on the beat, late, or missed.
 
-Mania maps with more than 4 keys are squeezed into 4 lanes, and osu!standard
-maps are converted by where each circle sits horizontally.
+#### How a map becomes one key
+
+Every note in the difficulty is collapsed onto one key, as taps. Notes that
+land together (chords) become one note. Where the map is denser than the
+chosen density, notes are dropped, keeping the ones on the strongest beats
+first (downbeat, then beat, half beat, quarter beat), then the biggest chords.
+The beat grid comes from the map's timing points. Notes are never moved, so
+they stay exactly where the mapper put them, in sync with the music.
+
+In 4-key mania, maps with more than 4 keys are squeezed into 4 lanes, and
+osu!standard maps are converted by where each circle sits horizontally.
+
+In one-key mode the no-look zone is at least the middle 30% of the screen, so
+the single lane can't be watched from right beside it.
 
 Press <kbd>G</kbd> during the game to show where the tracker thinks you're
 looking. Press <kbd>Space</kbd> on the results screen to play again.
@@ -107,9 +124,9 @@ help.
 | `js/game.js` | The ball game: ball, hits, timer |
 | `js/ui.js` | Small DOM and storage helpers |
 | `js/mania/osu.js` | Reading `.osz` archives and `.osu` files |
-| `js/mania/chart.js` | 4-lane chart, beat grid, corner circles on the beat |
-| `js/mania/game.js` | Peripheral mania gameplay: timing, judgments, gaze rules, drawing |
-| `js/mania/index.js` | Peripheral mania screens: map loading, settings, results |
+| `js/mania/chart.js` | 4-lane and one-key charts, beat grid, corner circles on the beat |
+| `js/mania/game.js` | Peripheral rhythm gameplay: timing, judgments, gaze rules, drawing |
+| `js/mania/index.js` | Peripheral rhythm screens: map loading, settings, results |
 
 Gameplay constants are at the top of each game file, for example round length
 and ball size in `js/game.js`, and the gaze timing windows in
