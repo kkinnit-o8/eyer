@@ -33,7 +33,8 @@ export function buildNotes(map) {
  * become one note. Passages denser than the chosen density are thinned,
  * keeping the notes on the strongest beats (downbeat, beat, half beat,
  * quarter beat) and then the biggest chords. Notes keep their exact map
- * times, so they stay in sync with the music.
+ * times, so they stay in sync with the music. Each note's `snap` is the
+ * strength of the beat it sits on (see beatStrength).
  */
 export function buildOneKeyNotes(map, sections, density) {
   const onsets = [];
@@ -64,7 +65,7 @@ export function buildOneKeyNotes(map, sections, density) {
     if (i < kept.length && kept[i].time - o.time < gap) continue;
     kept.splice(i, 0, o);
   }
-  return kept.map((o) => ({ lane: 0, time: o.time, end: null }));
+  return kept.map((o) => ({ lane: 0, time: o.time, end: null, snap: o.strength }));
 }
 
 function sectionAt(sections, time) {

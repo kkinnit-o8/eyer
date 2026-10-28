@@ -27,6 +27,9 @@ export const JUDGMENTS = {
   miss: { label: "Miss", color: "#f87171" },
 };
 const HIT_ORDER = ["perfect", "great", "good", "ok", "meh"];
+// One-key lines are colored by the beat they land on: white on the beat,
+// blue on half beats, yellow on quarter beats, purple otherwise.
+const SNAP_COLORS = ["#c084fc", "#fde047", "#5aa9ff", "#f2f2f2", "#f2f2f2"];
 const LOOK_COLORS = { onBeat: "#4ade80", late: "#fbbf24" };
 
 // osu!mania hit windows (ms either side) for an Overall Difficulty.
@@ -39,7 +42,7 @@ function judge(error, windows) {
 }
 
 export class ManiaGame {
-  constructor({ lanes = 4, notes, targets, od, audio, buffer, scrollMs, offsetMs, autoplay, width, height }) {
+  constructor({ lanes = 4, notes, targets, beats = [], od, audio, buffer, scrollMs, offsetMs, autoplay, width, height }) {
     this.audio = audio;
     this.buffer = buffer;
     this.scrollMs = scrollMs;
@@ -56,6 +59,8 @@ export class ManiaGame {
     this.pressed = new Array(lanes).fill(false);
     this.autoRelease = new Array(lanes).fill(0);
     this.flashes = new Array(lanes).fill(null);
+    this.beats = beats; // beat times, for the one-key box's pulse
+    this.beatIndex = 0;
 
     // Each circle appears one gap (at most a second) before its beat, and
     // after landing waits until shortly before the next one lands.
@@ -99,28 +104,40 @@ export class ManiaGame {
 
   resize(width, height) {
     const short = Math.min(width, height);
-    // Wide lanes and big notes: easier to read from the corner of your eye.
-    const laneW =
-      this.laneCount === 1
-        ? Math.round(Math.min(220, Math.max(100, Math.min(width * 0.14, height * 0.28))))
-        : Math.round(Math.min(160, Math.max(64, Math.min(width * 0.1, height * 0.2))));
-    const noteR = Math.round(laneW * 0.4);
-    const left = Math.round(width / 2 - (laneW * this.laneCount) / 2);
-    const right = left + laneW * this.laneCount;
-    this.layout = {
+    const corners = {
       width,
       height,
+      inset: Math.min(140, Math.max(56, short * 0.12)),
+      targetR: Math.min(56, Math.max(26, short * 0.06)),
+    };
+    if (this.laneCount === 1) {
+      // One key: a box in the middle that four lines close in on.
+      const half = Math.round(Math.min(90, Math.max(45, short * 0.09)));
+      this.layout = {
+        ...corners,
+        cx: width / 2,
+        cy: height / 2,
+        half,
+        // No looking at the middle 30% of the screen.
+        middleLeft: Math.min(width / 2 - half, width * 0.35),
+        middleRight: Math.max(width / 2 + half, width * 0.65),
+      };
+      return;
+    }
+    // Wide lanes and big notes: easier to read from the corner of your eye.
+    const laneW = Math.round(Math.min(160, Math.max(64, Math.min(width * 0.1, height * 0.2))));
+    const noteR = Math.round(laneW * 0.4);
+    const left = Math.round(width / 2 - laneW * 2);
+    const right = left + laneW * 4;
+    this.layout = {
+      ...corners,
       laneW,
       noteR,
       left,
       right,
-      // No looking here: the playfield, and at least the middle 30% of the
-      // screen so a narrow single lane can't be watched from right beside it.
-      middleLeft: Math.min(left, width * 0.35),
-      middleRight: Math.max(right, width * 0.65),
+      middleLeft: left,
+      middleRight: right,
       hitY: Math.round(height - noteR - Math.max(36, height * 0.06)),
-      inset: Math.min(140, Math.max(56, short * 0.12)),
-      targetR: Math.min(56, Math.max(26, short * 0.06)),
     };
   }
 
@@ -305,7 +322,9 @@ export class ManiaGame {
 
   draw(ctx) {
     const now = this.now;
-    this.#drawPlayfield(ctx, now);
+    if (this.laneCount === 1) this.#drawOneKey(ctx, now);
+    else this.#drawPlayfield(ctx, now);
+    if (this.blinded) this.#drawBlind(ctx);
     this.#drawTargets(ctx, now);
     if (now < this.introUntil) this.#drawIntro(ctx, now);
     const progress = Math.min(1, Math.max(0, now / this.endTime));
@@ -375,14 +394,112 @@ export class ManiaGame {
       }
     }
 
-    if (this.blinded) {
-      const { middleLeft, middleRight } = this.layout;
-      ctx.fillStyle = "#1a0404"; // fully opaque: no peeking at the notes
-      ctx.fillRect(middleLeft, 0, middleRight - middleLeft, height);
-      ctx.fillStyle = "#f87171";
-      ctx.font = "700 22px system-ui, sans-serif";
-      ctx.fillText("Eyes on the corners!", (middleLeft + middleRight) / 2, height / 2);
+  }
+
+  #drawOneKey(ctx, now) {
+    const { width, height, cx, cy, half } = this.layout;
+    const side = half * 2;
+
+    // Faint rails: the paths the lines travel along.
+    ctx.fillStyle = "#0c0c0c";
+    ctx.fillRect(0, cy - half, width, side);
+    ctx.fillRect(cx - half, 0, side, height);
+
+    // Each note is four lines that start at the screen edges together and
+    // close in on the box, touching its edges exactly on time. Hidden while
+    // you stare at the middle.
+    if (!this.blinded) {
+      const q = this.lanes[0];
+      for (let i = Math.max(0, this.next[0] - 8); i < q.length; i++) {
+        const n = q[i];
+        const dt = n.time - now;
+        if (dt > this.scrollMs) break;
+        if (n.head && n.head !== "miss") continue;
+        // Fade in at the edges; fade out at the box once the note is late.
+        let alpha = Math.min(1, (this.scrollMs - dt) / (this.scrollMs * 0.15));
+        if (dt < 0) alpha *= Math.max(0, 1 + dt / 200);
+        if (alpha <= 0) continue;
+        const p = Math.max(0, dt / this.scrollMs);
+        const color = n.head === "miss" ? JUDGMENTS.miss.color : SNAP_COLORS[n.snap ?? 3];
+        this.#drawLines(ctx, half + p * (cx - half), half + p * (cy - half), color, alpha);
+      }
     }
+
+    // The box pulses on every beat of the song.
+    while (this.beatIndex + 1 < this.beats.length && this.beats[this.beatIndex + 1] <= now) this.beatIndex++;
+    const sinceBeat = now - (this.beats[this.beatIndex] ?? -Infinity);
+    const pulse = sinceBeat >= 0 ? Math.exp(-sinceBeat / 140) : 0;
+    const r = Math.max(6, half * 0.18);
+    roundRect(ctx, cx - half, cy - half, side, side, r);
+    if (this.pressed[0]) {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.14)";
+      ctx.fill();
+    }
+    ctx.save();
+    ctx.shadowColor = "rgba(255, 255, 255, 0.8)";
+    ctx.shadowBlur = 18 * pulse;
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.45 + 0.4 * pulse})`;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.restore();
+
+    // On a judgment the box bursts outward in its color.
+    const flash = this.flashes[0];
+    if (flash && now - flash.at < FLASH_MS) {
+      const p = (now - flash.at) / FLASH_MS;
+      const color = JUDGMENTS[flash.judgment].color;
+      const grow = half * (1 + 0.4 * p);
+      roundRect(ctx, cx - grow, cy - grow, grow * 2, grow * 2, r);
+      ctx.strokeStyle = withAlpha(color, 0.9 * (1 - p));
+      ctx.lineWidth = 6 * (1 - p) + 1;
+      ctx.stroke();
+      roundRect(ctx, cx - half, cy - half, side, side, r);
+      ctx.fillStyle = withAlpha(color, 0.25 * (1 - p));
+      ctx.fill();
+    }
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+    ctx.font = "600 14px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(this.keys.labels[0], cx, cy + half + 22);
+  }
+
+  // Four separate lines, each as long as the box is wide: top and bottom at
+  // dy from the center, left and right at dx.
+  #drawLines(ctx, dx, dy, color, alpha) {
+    const { cx, cy, half } = this.layout;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 14;
+    ctx.lineWidth = 5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(cx - half, cy - dy);
+    ctx.lineTo(cx + half, cy - dy);
+    ctx.moveTo(cx - half, cy + dy);
+    ctx.lineTo(cx + half, cy + dy);
+    ctx.moveTo(cx - dx, cy - half);
+    ctx.lineTo(cx - dx, cy + half);
+    ctx.moveTo(cx + dx, cy - half);
+    ctx.lineTo(cx + dx, cy + half);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Staring at the middle: everything there goes dark, fully opaque so the
+  // notes can't be read through it.
+  #drawBlind(ctx) {
+    const { middleLeft, middleRight, height } = this.layout;
+    ctx.fillStyle = "#1a0404";
+    ctx.fillRect(middleLeft, 0, middleRight - middleLeft, height);
+    ctx.fillStyle = "#f87171";
+    ctx.font = "700 22px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Eyes on the corners!", (middleLeft + middleRight) / 2, height / 2);
   }
 
   #drawTargets(ctx, now) {

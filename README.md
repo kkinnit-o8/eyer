@@ -34,9 +34,9 @@ tracker sees you looking at it and reappears somewhere else.
    website), or a `.osu` file together with its song. Drag and drop works too.
    Nothing is uploaded anywhere; the map is read in your browser.
 2. Pick a difficulty and settings:
-   - **Game**: **One key** (the default) puts one big note lane in the middle,
-     played with <kbd>Space</kbd>. **4-key mania** plays the map as it is,
-     with <kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd>.
+   - **Game**: **One key** (the default) is played with <kbd>Space</kbd>.
+     **4-key mania** plays the map as it is, with <kbd>D</kbd> <kbd>F</kbd>
+     <kbd>J</kbd> <kbd>K</kbd>.
    - **Note density** (one key): the closest two notes may be: one beat, half
      a beat, or a quarter beat. See below for how the map is converted.
    - **Corner circles**: one per bar, every 2 beats, or every beat. They are
@@ -48,7 +48,13 @@ tracker sees you looking at it and reappears somewhere else.
    - **Note offset**: if notes feel late compared to the music, lower it.
    - **Autoplay**: watch the map play itself, to check how the circles line
      up with the music.
-3. Notes are circles that fall into the round receptors at the bottom.
+3. **One key**: a box sits in the middle of the screen. Each note is four
+   lines, one coming in from each side of the screen, closing in on the box.
+   Press <kbd>Space</kbd> when they touch it. The lines are colored by the
+   beat they land on: white on the beat, blue on half beats, yellow on
+   quarter beats, purple for anything else. The box pulses on every beat of
+   the song. **4-key mania**: notes are circles that fall into the round
+   receptors at the bottom.
 4. Corner hit circles appear with an approach ring that closes on the beat.
    Look at one to pop it: a green burst means on the beat, yellow means late.
    Once a circle has landed, a timer ring around it runs down. If it runs out

@@ -240,6 +240,7 @@ export class ManiaMode {
         lanes: this.settings.game === "mania" ? 4 : 1,
         notes: this.notes,
         targets,
+        beats: beats.map((b) => b.time),
         od: this.map.od,
         audio: this.audio,
         buffer,
