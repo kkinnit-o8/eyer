@@ -193,7 +193,7 @@
         <label id="mania-drop" class="dropzone">
           <input id="mania-file" type="file" accept=".osz,.zip,.osu,.mp3,.ogg,.wav" multiple>
           <strong>Choose an osu! map</strong>
-          <span>.osz file, or drop it here</span>
+          <span>An .osz map, or any song (mp3) to get an automatic chart. Or drop it here.</span>
         </label>
       </div>
       <p id="mania-status" class="status" role="status"></p>
@@ -205,6 +205,32 @@
         <div class="fields">
           <label for="mania-diff">Difficulty</label>
           <select id="mania-diff"></select>
+          <label for="mania-mode">Mode</label>
+          <select id="mania-mode">
+            <option value="play">Play</option>
+            <option value="practice">Practice</option>
+          </select>
+          <label for="mania-speed" data-practice>Speed</label>
+          <select id="mania-speed" data-practice>
+            <option value="0.5">0.5× (slower, lower pitch)</option>
+            <option value="0.6">0.6×</option>
+            <option value="0.75">0.75×</option>
+            <option value="0.9">0.9×</option>
+            <option value="1">1×</option>
+            <option value="1.1">1.1×</option>
+            <option value="1.25">1.25×</option>
+            <option value="1.5">1.5× (faster, higher pitch)</option>
+          </select>
+          <label for="mania-from" data-practice>Section</label>
+          <div class="section" data-practice>
+            <input id="mania-from" type="range" step="1" aria-label="Section start">
+            <input id="mania-to" type="range" step="1" aria-label="Section end">
+            <output id="mania-section-value"></output>
+          </div>
+          <label for="mania-eyes" data-practice>Eye challenge</label>
+          <span class="check" data-practice><input id="mania-eyes" type="checkbox"> Corner circles and the no-look middle. Untick to practice just the notes, looking wherever you like</span>
+          <label for="mania-repeat" data-practice>Repeat</label>
+          <span class="check" data-practice><input id="mania-repeat" type="checkbox"> Play the section again when it ends</span>
           <label for="mania-game">Game</label>
           <select id="mania-game">
             <option value="onekey">One key (Space)</option>
@@ -230,7 +256,10 @@
           <label for="mania-scroll">Note fall time</label>
           <span class="range"><input id="mania-scroll" type="range" min="400" max="2000" step="50"><output id="mania-scroll-value"></output></span>
           <label for="mania-offset">Note offset (ms)</label>
-          <input id="mania-offset" type="number" step="5">
+          <span class="offset-row">
+            <input id="mania-offset" type="number" step="5">
+            <button id="btn-offset-test" type="button">Tap to set</button>
+          </span>
           <label for="mania-autoplay">Autoplay</label>
           <span class="check"><input id="mania-autoplay" type="checkbox"> Watch the map play itself</span>
         </div>
@@ -241,6 +270,20 @@
         <button id="btn-mania-back">Menu</button>
       </div>
       <p class="hint">One key: <kbd>Space</kbd>. Mania: <kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd>. <kbd>Esc</kbd> quits a song. If notes feel late, lower the note offset.</p>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="offset">
+    <div class="panel compact">
+      <h2>Set the note offset</h2>
+      <p>Tap <kbd>Space</kbd> along with the clicks: listen to the first 4, then tap with each one. Go by the sound, not the screen.</p>
+      <div id="offset-pulse" class="tap-pulse" aria-hidden="true"></div>
+      <p id="offset-status" class="status" role="status"></p>
+      <div class="buttons">
+        <button id="btn-offset-use" class="primary" disabled>Use it</button>
+        <button id="btn-offset-again">Start over</button>
+        <button id="btn-offset-cancel">Cancel</button>
+      </div>
     </div>
   </section>
 

@@ -259,6 +259,8 @@ function step(now) {
     }
   } else if (app.state === "mania") {
     mania.step(now);
+  } else if (app.state === "offset") {
+    mania.stepOffset(now);
   } else if (app.state === "playing") {
     app.game.update(now, currentGaze(now));
     const left = app.game.timeLeft(now);
@@ -366,6 +368,10 @@ window.addEventListener("pointermove", (e) => {
   app.mouse = { x: e.clientX, y: e.clientY };
 });
 window.addEventListener("keydown", (e) => {
+  if (app.state === "offset") {
+    mania.keydown(e);
+    return;
+  }
   if (app.state === "mania") {
     if (e.key === "g" || e.key === "G") app.showGaze = !app.showGaze;
     else mania.keydown(e);

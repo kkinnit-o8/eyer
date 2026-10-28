@@ -3,13 +3,19 @@
 
 import { $, setStatus, readStorage, writeStorage } from "../ui.js";
 import { extractEntries, mapsFromEntries } from "./osu.js";
+import { chartAudioFile } from "./autochart.js";
 import { listSongs, saveSong, loadSongFiles, touchSong, removeSong } from "./library.js";
 import { buildNotes, buildOneKeyNotes, chartEnd, bpmSections, beatGrid, cornerTargets, bpmSummary } from "./chart.js";
 import { ManiaGame, JUDGMENTS } from "./game.js";
+import { OffsetTest, COUNT_IN, TAPS } from "./offset.js";
 
 const SETTINGS_KEY = "eyer.mania";
-const DEFAULTS = { game: "onekey", density: "half", shape: "box", rhythm: "bar", scrollMs: 1000, offsetMs: 0, autoplay: false };
+const DEFAULTS = {
+  game: "onekey", density: "half", shape: "box", rhythm: "bar", scrollMs: 1000, offsetMs: 0, autoplay: false,
+  mode: "play", speed: 1, eyes: true, repeat: false,
+};
 const MIN_TARGET_GAP_MS = 450;
+const PREROLL_MS = 3000; // practice: music starts this long before the section
 
 export class ManiaMode {
   /**
@@ -29,6 +35,8 @@ export class ManiaMode {
     this.audioFiles = new Map();
     this.song = null; // { id, title, artist, addedAt, playedAt } of the loaded song
     this.library = []; // saved songs
+    this.section = { from: 0, to: Infinity }; // practice section, ms
+    this.offsetTest = null;
     this.buffers = new Map(); // decoded audio, by file name
     this.map = null;
     this.notes = [];
@@ -133,6 +141,18 @@ export class ManiaMode {
       this.#save();
     });
 
+    this.#wirePractice();
+    $("btn-offset-test").addEventListener("click", () => this.#openOffsetTest());
+    $("btn-offset-again").addEventListener("click", () => this.#openOffsetTest());
+    $("btn-offset-cancel").addEventListener("click", () => this.#closeOffsetTest());
+    $("btn-offset-use").addEventListener("click", () => {
+      s.offsetMs = this.offsetTest.offset;
+      $("mania-offset").value = s.offsetMs;
+      this.#save();
+      this.#closeOffsetTest();
+    });
+    $("offset-pulse").addEventListener("pointerdown", (e) => this.#tapOffset(e.timeStamp));
+
     const offset = $("mania-offset");
     offset.value = s.offsetMs;
     offset.addEventListener("change", () => {
@@ -159,6 +179,66 @@ export class ManiaMode {
     writeStorage(SETTINGS_KEY, JSON.stringify(this.settings));
   }
 
+  #wirePractice() {
+    const s = this.settings;
+    const mode = $("mania-mode");
+    const showPractice = () => {
+      for (const el of document.querySelectorAll("[data-practice]")) el.hidden = s.mode !== "practice";
+    };
+    mode.value = s.mode;
+    showPractice();
+    mode.addEventListener("change", () => {
+      s.mode = mode.value;
+      this.#save();
+      showPractice();
+    });
+    const speed = $("mania-speed");
+    speed.value = String(s.speed);
+    speed.addEventListener("change", () => {
+      s.speed = Number(speed.value);
+      this.#save();
+    });
+    for (const [id, key] of [["mania-eyes", "eyes"], ["mania-repeat", "repeat"]]) {
+      const box = $(id);
+      box.checked = s[key];
+      box.addEventListener("change", () => {
+        s[key] = box.checked;
+        this.#save();
+      });
+    }
+    const from = $("mania-from");
+    const to = $("mania-to");
+    from.addEventListener("input", () => {
+      if (Number(from.value) >= Number(to.value)) from.value = Number(to.value) - 1;
+      this.section.from = Number(from.value) * 1000;
+      this.#showSection();
+    });
+    to.addEventListener("input", () => {
+      if (Number(to.value) <= Number(from.value)) to.value = Number(from.value) + 1;
+      this.section.to = Number(to.value) * 1000;
+      this.#showSection();
+    });
+  }
+
+  // Practice section sliders cover the whole chart again.
+  #resetSection() {
+    const seconds = Math.ceil(this.end / 1000);
+    for (const el of [$("mania-from"), $("mania-to")]) {
+      el.min = 0;
+      el.max = seconds;
+    }
+    $("mania-from").value = 0;
+    $("mania-to").value = seconds;
+    this.section = { from: 0, to: seconds * 1000 };
+    this.#showSection();
+  }
+
+  #showSection() {
+    const { from, to } = this.section;
+    const count = this.notes.filter((n) => n.time >= from && n.time <= to).length;
+    $("mania-section-value").textContent = `${clock(from)} – ${clock(to)} · ${count} notes`;
+  }
+
   // Map files the player picked or dropped: show them and save the song.
   async #load(files) {
     const status = $("mania-status");
@@ -166,6 +246,14 @@ export class ManiaMode {
     let entries;
     try {
       entries = await extractEntries(files);
+      // Just a song, no osu! map: listen to it and make a chart.
+      const names = [...entries.keys()];
+      if (!names.some((n) => n.endsWith(".osu")) && names.length) {
+        setStatus(status, "Listening to the song and making a chart… (a few seconds)");
+        const original = [...files].find((f) => f.name.toLowerCase() === names[0])?.name ?? names[0];
+        const osu = await chartAudioFile(entries.get(names[0]), original);
+        entries.set(`${names[0]}.auto.osu`, new TextEncoder().encode(osu));
+      }
       this.#use(entries, null);
       setStatus(status, "");
     } catch (err) {
@@ -264,6 +352,7 @@ export class ManiaMode {
     const s = this.settings;
     this.notes = s.game === "mania" ? buildNotes(this.map) : buildOneKeyNotes(this.map, this.timing.sections, s.density);
     this.end = chartEnd(this.notes);
+    this.#resetSection();
     this.#showInfo();
     $("btn-mania-start").disabled = !this.#audioName() || !this.notes.length;
   }
@@ -297,11 +386,9 @@ export class ManiaMode {
       this.settings.game === "mania"
         ? `${this.notes.length} notes${holds ? ` (${holds} holds)` : ""}`
         : `${this.notes.length} notes on one key (from ${this.map.hitObjects.length})`;
-    const minutes = Math.floor(this.end / 60000);
-    const seconds = String(Math.floor((this.end % 60000) / 1000)).padStart(2, "0");
     setStatus(
       info,
-      `${bpmText}${this.timing.estimated ? " (estimated from the notes)" : ""} · ${bpm.meter}/4 · ${minutes}:${seconds} · ` +
+      `${bpmText}${this.timing.estimated ? " (estimated from the notes)" : ""} · ${bpm.meter}/4 · ${clock(this.end)} · ` +
         `${notes}. A corner circle lands every ${(gap / 1000).toFixed(2)} s.`,
     );
   }
@@ -318,16 +405,32 @@ export class ManiaMode {
     // Space is a game key now; it mustn't also press a focused button.
     document.activeElement?.blur();
     try {
+      const s = this.settings;
+      const practice = s.mode === "practice";
+      const rate = practice ? s.speed : 1;
       const buffer = await this.#buffer();
       const beats = beatGrid(this.timing.sections, this.end + 2000);
-      const first = this.notes[0].time;
-      const targets = cornerTargets(beats, this.settings.rhythm, first - 1500, this.end);
+      let notes = this.notes;
+      let targets = practice && !s.eyes ? [] : cornerTargets(beats, s.rhythm, notes[0].time - 1500, this.end);
+      let audioFrom = 0;
+      if (practice) {
+        const { from, to } = this.section;
+        notes = notes.filter((n) => n.time >= from && n.time <= to);
+        if (!notes.length) throw new RangeError("No notes in that section.");
+        targets = targets.filter((t) => t.time >= notes[0].time - 1500 && t.time <= to);
+        // Start the music a little before the section, so you can hear your way in.
+        audioFrom = Math.max(0, notes[0].time - PREROLL_MS * rate);
+      }
+      // The game runs in real time from where the music starts.
+      const toGame = (t) => (t - audioFrom) / rate;
       this.game = new ManiaGame({
-        lanes: this.settings.game === "mania" ? 4 : 1,
-        shape: this.settings.shape,
-        notes: this.notes,
-        targets,
-        beats: beats.map((b) => b.time),
+        lanes: s.game === "mania" ? 4 : 1,
+        shape: s.shape,
+        notes: notes.map((n) => ({ ...n, time: toGame(n.time), end: n.end === null ? null : toGame(n.end) })),
+        targets: targets.map((t) => ({ ...t, time: toGame(t.time) })),
+        beats: beats.map((b) => toGame(b.time)),
+        audioFrom,
+        rate,
         od: this.map.od,
         audio: this.audio,
         buffer,
@@ -344,7 +447,8 @@ export class ManiaMode {
       this.setState("mania");
     } catch (err) {
       console.error(err);
-      setStatus($("mania-status"), "Couldn't play this song's audio file.", "bad");
+      const message = err instanceof RangeError ? err.message : "Couldn't play this song's audio file.";
+      setStatus($("mania-status"), message, "bad");
       this.setState("mania-menu");
     } finally {
       button.disabled = false;
@@ -363,8 +467,17 @@ export class ManiaMode {
   }
 
   step(now) {
+    if (!this.game) return;
     this.game.update(now, this.gaze(now));
-    if (this.game.isOver()) this.#finish();
+    if (!this.game.isOver()) return;
+    if (this.settings.mode === "practice" && this.settings.repeat) {
+      // Practice on repeat: go straight into the section again.
+      this.game.stop();
+      this.game = null;
+      this.#start();
+    } else {
+      this.#finish();
+    }
   }
 
   draw(ctx) {
@@ -378,6 +491,15 @@ export class ManiaMode {
   }
 
   keydown(e) {
+    if (this.offsetTest) {
+      if (e.code === "Escape") this.#closeOffsetTest();
+      else if (e.code === "Space") {
+        e.preventDefault();
+        if (!e.repeat) this.#tapOffset(e.timeStamp);
+      }
+      return;
+    }
+    if (!this.game) return;
     if (e.code === "Escape") {
       this.game.stop();
       this.game = null;
@@ -391,6 +513,7 @@ export class ManiaMode {
   }
 
   keyup(e) {
+    if (!this.game) return;
     const lane = this.game.keyCodes.indexOf(e.code);
     if (lane < 0) return;
     e.preventDefault();
@@ -401,9 +524,10 @@ export class ManiaMode {
     this.game.stop();
     const r = this.game.results();
     const keys = this.game.laneCount === 1 ? "one key" : "4 keys";
+    const practice = this.settings.mode === "practice" ? ` · practice ${this.game.rate}×` : "";
     this.game = null;
 
-    $("mr-title").textContent = `${this.map.title} [${this.map.version}] · ${keys}`;
+    $("mr-title").textContent = `${this.map.title} [${this.map.version}] · ${keys}${practice}`;
     $("mr-acc").textContent = `${(r.accuracy * 100).toFixed(2)}%`;
     const row = (label, value, color) => {
       const dt = Object.assign(document.createElement("dt"), { textContent: label });
@@ -416,6 +540,7 @@ export class ManiaMode {
       ...Object.entries(JUDGMENTS).flatMap(([key, j]) => row(j.label, r.counts[key], j.color)),
     );
     const e = r.eyes;
+    $("mr-eyes").parentElement.hidden = !e.total;
     $("mr-eyes").replaceChildren(
       ...row("On the beat", `${e.onBeat} / ${e.total}`, "#4ade80"),
       ...row("Late", e.late, "#fbbf24"),
@@ -426,4 +551,57 @@ export class ManiaMode {
     );
     this.setState("mania-results");
   }
+
+  // ---- Note offset test -------------------------------------------------
+
+  #openOffsetTest() {
+    this.offsetTest?.stop();
+    this.audio ??= new AudioContext({ latencyHint: "interactive" });
+    this.audio.resume();
+    document.activeElement?.blur();
+    this.offsetTest = new OffsetTest(this.audio);
+    $("btn-offset-use").disabled = true;
+    this.setState("offset");
+  }
+
+  #closeOffsetTest() {
+    this.offsetTest?.stop();
+    this.offsetTest = null;
+    this.setState("mania-menu");
+  }
+
+  #tapOffset(perf) {
+    if (!this.offsetTest?.tap(perf)) return;
+    const pulse = $("offset-pulse");
+    pulse.classList.remove("tap");
+    void pulse.offsetWidth; // restart the animation
+    pulse.classList.add("tap");
+  }
+
+  /** Called every frame on the offset test screen. */
+  stepOffset(now) {
+    const test = this.offsetTest;
+    if (!test) return;
+    const status = $("offset-status");
+    const taps = test.errors.length;
+    const heard = test.heardClicks(now);
+    if (test.done) {
+      const ms = test.offset;
+      const when = ms === 0 ? "right on the clicks" : `${Math.abs(ms)} ms ${ms > 0 ? "after" : "before"} the clicks`;
+      setStatus(status, `You press ${when}. Use ${ms} ms as the note offset?`, "ok");
+      $("btn-offset-use").textContent = `Use ${ms} ms`;
+      $("btn-offset-use").disabled = false;
+    } else if (heard <= COUNT_IN) {
+      setStatus(status, heard ? `Listen… ${heard}` : "Listen…");
+    } else if (heard > COUNT_IN + TAPS * 2) {
+      setStatus(status, "The clicks ran out. Start over and tap along with each click.", "warn");
+    } else {
+      setStatus(status, `Tap along: ${taps} / ${TAPS}`);
+    }
+  }
+}
+
+function clock(ms) {
+  const total = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }

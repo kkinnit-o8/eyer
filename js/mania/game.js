@@ -3,6 +3,8 @@
 // corners on the beat. Look at one to pop it; let its timer run out and you
 // lose your streak. Stare at the middle and the notes disappear.
 
+import { heardTime } from "./clock.js";
+
 const KEY_SETS = {
   1: { codes: ["Space"], labels: ["Space"], colors: ["#f2f2f2"] },
   4: { codes: ["KeyD", "KeyF", "KeyJ", "KeyK"], labels: ["D", "F", "J", "K"], colors: ["#f2f2f2", "#5aa9ff", "#5aa9ff", "#f2f2f2"] },
@@ -44,12 +46,20 @@ function judge(error, windows) {
 
 export class ManiaGame {
   /**
-   * onLook(x, y, perf) is called when the player pops a corner circle: they
-   * were looking at (x, y) at performance time perf.
+   * Times (notes, targets, beats) are in ms of real time from where the
+   * audio starts playing: audioFrom (ms into the song) at speed rate, which
+   * practice uses to start partway through or slow a song down. onLook(x, y,
+   * perf) is called when the player pops a corner circle: they were looking
+   * at (x, y) at performance time perf.
    */
-  constructor({ lanes = 4, shape = "box", notes, targets, beats = [], od, audio, buffer, scrollMs, offsetMs, autoplay, onLook, width, height }) {
+  constructor({
+    lanes = 4, shape = "box", notes, targets, beats = [], od, audio, buffer, audioFrom = 0, rate = 1,
+    scrollMs, offsetMs, autoplay, onLook, width, height,
+  }) {
     this.audio = audio;
     this.buffer = buffer;
+    this.audioFrom = audioFrom;
+    this.rate = rate;
     this.scrollMs = scrollMs;
     this.offsetMs = offsetMs;
     this.autoplay = autoplay;
@@ -154,9 +164,10 @@ export class ManiaGame {
     this.gain.connect(this.audio.destination);
     this.source = this.audio.createBufferSource();
     this.source.buffer = this.buffer;
+    this.source.playbackRate.value = this.rate;
     this.source.connect(this.gain);
     this.startAt = this.audio.currentTime + 0.1 + leadIn;
-    this.source.start(this.startAt);
+    this.source.start(this.startAt, this.audioFrom / 1000);
   }
 
   stop() {
@@ -168,14 +179,9 @@ export class ManiaGame {
     this.source = null;
   }
 
-  /** Song position in ms at a performance.now() time, from the audio clock. */
+  /** Game time in ms at a performance.now() time, from the audio clock. */
   songTime(perf) {
-    const ts = this.audio.getOutputTimestamp?.();
-    const contextTime =
-      ts && ts.performanceTime > 0
-        ? ts.contextTime + (perf - ts.performanceTime) / 1000
-        : this.audio.currentTime - (this.audio.outputLatency || this.audio.baseLatency || 0);
-    return (contextTime - this.startAt) * 1000 - this.offsetMs;
+    return (heardTime(this.audio, perf) - this.startAt) * 1000 - this.offsetMs;
   }
 
   isOver() {
@@ -603,9 +609,11 @@ export class ManiaGame {
   // Combo, accuracy and last judgment sit where you last popped a circle,
   // which is where your eyes are, so you never need to look at the middle.
   #drawStreak(ctx, now) {
-    if (!this.lastPopped) return;
+    // Practicing without corner circles: you may look anywhere, so it goes on top.
+    const free = !this.targets.length;
+    if (!this.lastPopped && !free) return;
     const R = this.layout.targetR;
-    const { x, y } = this.#cornerPos(this.lastPopped.corner);
+    const { x, y } = free ? { x: this.layout.width / 2, y: R + 16 } : this.#cornerPos(this.lastPopped.corner);
     ctx.fillStyle = now - this.streakLostAt < STREAK_LOST_MS ? "#f87171" : "rgba(255, 255, 255, 0.9)";
     ctx.font = `700 ${Math.round(R * 0.8)}px system-ui, sans-serif`;
     ctx.fillText(String(this.combo), x, y);
@@ -625,11 +633,14 @@ export class ManiaGame {
     ctx.textBaseline = "middle";
     ctx.fillStyle = "#fff";
     ctx.font = "700 22px system-ui, sans-serif";
-    ctx.fillText("Look at each corner circle to pop it", width / 2, height * 0.38);
+    const lines = this.targets.length
+      ? ["Look at each corner circle to pop it", "Miss one and you lose your streak", "Read the notes from the corner of your eye"]
+      : ["Practice", "No corner circles: look wherever you like", "Learn the pattern"];
+    ctx.fillText(lines[0], width / 2, height * 0.38);
     ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
     ctx.font = "16px system-ui, sans-serif";
-    ctx.fillText("Miss one and you lose your streak", width / 2, height * 0.38 + 32);
-    ctx.fillText("Read the notes from the corner of your eye", width / 2, height * 0.38 + 56);
+    ctx.fillText(lines[1], width / 2, height * 0.38 + 32);
+    ctx.fillText(lines[2], width / 2, height * 0.38 + 56);
     ctx.fillText(this.keys.labels.join("  "), width / 2, height * 0.38 + 84);
     ctx.globalAlpha = 1;
   }

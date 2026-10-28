@@ -66,8 +66,9 @@ body[data-state="mania"] {
 }
 
 .panel {
+  --pad: 28px;
   width: min(520px, 100%);
-  padding: 28px;
+  padding: var(--pad);
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -479,6 +480,80 @@ kbd {
   opacity: 0;
 }
 
+/* Practice adds rows: keep Play and Menu in view while scrolling. */
+.panel.wide > .buttons {
+  position: sticky;
+  bottom: 0;
+  margin: 12px calc(-1 * var(--pad)) 0;
+  padding: 12px var(--pad) 16px;
+  background: #121212;
+  border-radius: 0 0 16px 16px;
+}
+
+.section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+.section input {
+  min-width: 0;
+  accent-color: var(--red);
+}
+
+.section output {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.check {
+  line-height: 1.35;
+}
+
+.offset-row {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.offset-row input {
+  flex: 1;
+}
+
+.offset-row button {
+  flex: none;
+  padding: 8px 14px;
+  font-size: 0.9rem;
+}
+
+.tap-pulse {
+  width: 96px;
+  height: 96px;
+  margin: 18px auto;
+  border: 3px solid rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.tap-pulse.tap {
+  animation: tap-pulse 0.25s ease-out;
+}
+
+@keyframes tap-pulse {
+  from {
+    background: rgba(255, 42, 31, 0.8);
+    transform: scale(1.12);
+  }
+  to {
+    background: transparent;
+    transform: scale(1);
+  }
+}
+
 #mania-status:empty {
   display: none;
 }
@@ -546,6 +621,12 @@ kbd {
   text-align: left;
 }
 
+/* Rows switched off by a setting (e.g. practice-only rows). Needed because
+   .check and .section set their own display. */
+.fields [hidden] {
+  display: none;
+}
+
 .fields > label {
   color: var(--muted);
   font-size: 0.95rem;
@@ -584,6 +665,7 @@ input[type="number"] {
 }
 
 .check input {
+  flex: none;
   width: 18px;
   height: 18px;
   accent-color: var(--red);
@@ -683,7 +765,8 @@ body[data-state="playing"] #hud {
 
 @media (max-width: 480px) {
   .panel {
-    padding: 20px 16px;
+    --pad: 16px;
+    padding: 20px var(--pad);
   }
 
   h1 {

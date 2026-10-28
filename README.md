@@ -36,6 +36,8 @@ tracker sees you looking at it and reappears somewhere else.
    Imported songs are saved in your browser (only the charts and the music),
    so they're listed under **Saved songs** next time, and the song you played
    last opens automatically. **Remove from saved songs** deletes one.
+   **Any song works too**: choose a plain mp3 (or ogg/wav) with no osu! map
+   and the game listens to it and makes an "Auto" chart (see below).
 2. Pick a difficulty and settings:
    - **Game**: **One key** (the default) is played with <kbd>Space</kbd>.
      **4-key mania** plays the map as it is, with <kbd>D</kbd> <kbd>F</kbd>
@@ -51,8 +53,20 @@ tracker sees you looking at it and reappears somewhere else.
    - **Note fall time**: how long a note takes to fall. Longer is easier to
      read from the corner of your eye.
    - **Note offset**: if notes feel late compared to the music, lower it.
+     **Tap to set** measures it for you: tap <kbd>Space</kbd> along with a
+     metronome (after a 4-click count-in) and the typical gap between the
+     clicks and your taps becomes the offset.
    - **Autoplay**: watch the map play itself, to check how the circles line
      up with the music.
+   - **Mode: Practice** adds:
+     - **Speed** from 0.5× to 1.5×. The music's pitch changes with it.
+     - **Section**: play only part of the song. The music starts 3 seconds
+       before it so you can hear your way in.
+     - **Eye challenge**: untick it to practice just the notes, with no corner
+       circles and no blackout, so you can look straight at them and learn
+       the pattern.
+     - **Repeat**: the section starts again as soon as it ends (<kbd>Esc</kbd>
+       to stop).
 3. **One key**: a target (box or circle) sits in the middle of the screen.
    Each note starts at the edge of the screen and closes in on it: four
    lines, one from each side, or a ring. Press <kbd>Space</kbd> when it
@@ -85,6 +99,23 @@ they stay exactly where the mapper put them, in sync with the music.
 
 In 4-key mania, maps with more than 4 keys are squeezed into 4 lanes, and
 osu!standard maps are converted by where each circle sits horizontally.
+
+#### Auto charts for any song
+
+For a song without an osu! map, the game finds where sounds start (onsets)
+by looking for sudden rises in energy across the spectrum, and which band
+they're strongest in (bass, low mids, high mids, treble), which becomes the
+lane in 4-key mania. For the tempo, every candidate BPM is scored by how well
+all the onsets line up with a beat grid of that spacing across the whole
+song, which finds a steady tempo very precisely; it's then kept between 90
+and 230 BPM. The bar line goes where the bass is strongest. Onsets close to
+the grid are snapped onto it. The result is saved as a real `.osu` file
+("Auto" difficulty) with the song, so it loads instantly next time.
+
+Checked against hand-made maps: Silhouette came out at 183.03 BPM (the map
+says 183) with the grid within 4 ms of the mapper's notes, and Unravel at
+134.96 BPM (map: 135) within 6 ms. It assumes a steady tempo, so songs that
+speed up or slow down will drift.
 
 In one-key mode the no-look zone is at least the middle 30% of the screen, so
 the single lane can't be watched from right beside it.
@@ -153,6 +184,9 @@ help.
 | `js/ui.js` | Small DOM and storage helpers |
 | `js/mania/osu.js` | Reading `.osz` archives and `.osu` files |
 | `js/mania/library.js` | Saved songs (IndexedDB) |
+| `js/mania/autochart.js`, `js/mania/autochart-worker.js` | Charts for plain songs: onsets, tempo, `.osu` output (analysis runs in a worker) |
+| `js/mania/clock.js` | Audio clock and metronome click |
+| `js/mania/offset.js` | The tap-along note offset test |
 | `js/mania/chart.js` | 4-lane and one-key charts, beat grid, corner circles on the beat |
 | `js/mania/game.js` | Peripheral rhythm gameplay: timing, judgments, gaze rules, drawing |
 | `js/mania/index.js` | Peripheral rhythm screens: map loading, settings, results |
