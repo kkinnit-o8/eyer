@@ -400,6 +400,9 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("keyup", (e) => {
   if (app.state === "mania") mania.keyup(e);
 });
+window.addEventListener("blur", () => {
+  if (app.state === "mania") mania.blur();
+});
 
 if (MOUSE_MODE) $("btn-camera").textContent = "Start (mouse mode)";
 

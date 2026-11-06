@@ -189,7 +189,7 @@
   <section class="screen" data-screen="mania-menu">
     <div class="panel wide">
       <h2 id="mania-title">Peripheral rhythm</h2>
-      <p class="hint about" data-about="eyes" hidden>Hit circles land in the corners on the beat: look at each one to pop it before its timer runs out, or you lose your streak. The game happens around the circle you're looking at: notes close in on it, and you press Space as each one touches it.</p>
+      <p class="hint about" data-about="eyes" hidden>Hit circles land in the corners on the beat: look at each one to pop it before its timer runs out, or you lose your streak. The game happens around the circle you're looking at: notes close in on it, and you press any key as each one touches it.</p>
       <p class="hint about" data-about="middle">Notes fall down the middle, but you can't look at them. Hit circles land in the corners on the beat: look at each one to pop it before its timer runs out, or you lose your streak. Read the notes from the corner of your eye. Stare at the middle and the notes disappear.</p>
       <div class="song-row">
         <select id="mania-library" aria-label="Saved songs" hidden></select>
@@ -236,8 +236,8 @@
           <span class="check" data-practice><input id="mania-repeat" type="checkbox"> Play the section again when it ends</span>
           <label for="mania-game">Game</label>
           <select id="mania-game">
-            <option value="onekey">One key (Space)</option>
-            <option value="eyes">One key, around the circle you look at (Space)</option>
+            <option value="onekey">One key (any key)</option>
+            <option value="eyes">One key, around the circle you look at (any key)</option>
             <option value="mania">4-key mania (D F J K)</option>
           </select>
           <label for="mania-density" data-one-key>Note density</label>
@@ -274,7 +274,7 @@
         <button id="btn-editor" disabled>Make a level</button>
         <button id="btn-mania-back">Menu</button>
       </div>
-      <p class="hint">One key: <kbd>Space</kbd>. Mania: <kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd>. <kbd>Esc</kbd> quits a song. If notes feel late, lower the note offset.</p>
+      <p class="hint">One key: any key but <kbd>G</kbd> (it shows your gaze), so two fingers can take turns on fast notes. Mania: <kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd>. <kbd>Esc</kbd> quits a song. If notes feel late, lower the note offset.</p>
     </div>
   </section>
 
@@ -285,7 +285,7 @@
       <div data-stage="intro">
         <p>Two rounds, each with the song playing:</p>
         <ol class="steps">
-          <li><strong>Notes.</strong> Press <kbd>Space</kbd> wherever you want a note.</li>
+          <li><strong>Notes.</strong> Press any key wherever you want a note.</li>
           <li><strong>Eye circles.</strong> The song plays again with your notes ticking along. Click wherever you want an eye circle to land.</li>
         </ol>
         <p class="hint">Press <kbd>Esc</kbd> to end a round whenever you like: you don't have to map the whole song. <kbd>Backspace</kbd> undoes the last one.</p>
@@ -313,7 +313,7 @@
   <section class="screen" data-screen="offset">
     <div class="panel compact">
       <h2>Set the note offset</h2>
-      <p>Tap <kbd>Space</kbd> along with the clicks: listen to the first 4, then tap with each one. Go by the sound, not the screen.</p>
+      <p>Tap any key along with the clicks: listen to the first 4, then tap with each one. Go by the sound, not the screen.</p>
       <div id="offset-pulse" class="tap-pulse" aria-hidden="true"></div>
       <p id="offset-status" class="status" role="status"></p>
       <div class="buttons">

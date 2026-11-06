@@ -5,10 +5,20 @@
 
 import { heardTime } from "./clock.js";
 
+// One key takes any key (see isTapKey), so you can tap with whatever is
+// comfortable, or alternate two fingers on fast streams.
 const KEY_SETS = {
-  1: { codes: ["Space"], labels: ["Space"], colors: ["#f2f2f2"] },
+  1: { codes: null, labels: ["Any key"], colors: ["#f2f2f2"] },
   4: { codes: ["KeyD", "KeyF", "KeyJ", "KeyK"], labels: ["D", "F", "J", "K"], colors: ["#f2f2f2", "#5aa9ff", "#5aa9ff", "#f2f2f2"] },
 };
+
+/**
+ * Whether a key counts as a tap: anything but Esc, function keys and
+ * shortcuts (Ctrl, Alt or Cmd held), which keep doing what they do.
+ */
+export function isTapKey(e) {
+  return e.code !== "Escape" && !/^F\d+$/.test(e.code) && !e.ctrlKey && !e.altKey && !e.metaKey;
+}
 
 const CENTER_GRACE_MS = 300; // sweeping across the middle is fine; staring isn't
 const LOOK_EARLY_MS = 300; // a corner circle can be popped from this long before its beat
@@ -77,6 +87,7 @@ export class ManiaGame {
     this.next = new Array(lanes).fill(0); // first note per lane whose head is unjudged
     this.holds = new Array(lanes).fill(null); // hold note being held, per lane
     this.pressed = new Array(lanes).fill(false);
+    this.held = Array.from({ length: lanes }, () => new Set()); // keys down, per lane
     this.autoRelease = new Array(lanes).fill(0);
     this.flashes = new Array(lanes).fill(null);
     this.beats = beats; // beat times, for the one-key box's pulse
@@ -120,8 +131,15 @@ export class ManiaGame {
     this.resize(width, height);
   }
 
-  get keyCodes() {
-    return this.keys.codes;
+  /** The lane a key press plays, or -1 if the key isn't one of the game's. */
+  laneOf(e) {
+    if (!this.keys.codes) return isTapKey(e) ? 0 : -1;
+    return this.keys.codes.indexOf(e.code);
+  }
+
+  /** The lane a key is holding down, or -1. */
+  heldLane(key) {
+    return this.held.findIndex((keys) => keys.has(key));
   }
 
   resize(width, height) {
@@ -200,8 +218,11 @@ export class ManiaGame {
     return (300 * (c.perfect + c.great) + 200 * c.good + 100 * c.ok + 50 * c.meh) / (300 * total);
   }
 
-  keyDown(lane, perf) {
-    if (this.autoplay || this.pressed[lane]) return;
+  // `key` tells keys apart when several play one lane: each new press
+  // counts, and the lane stays down until the last one comes up.
+  keyDown(lane, perf, key = lane) {
+    if (this.autoplay || this.held[lane].has(key)) return;
+    this.held[lane].add(key);
     this.pressed[lane] = true;
     const now = this.songTime(perf);
     const note = this.lanes[lane][this.next[lane]];
@@ -218,8 +239,9 @@ export class ManiaGame {
     }
   }
 
-  keyUp(lane, perf) {
-    if (this.autoplay) return;
+  keyUp(lane, perf, key = lane) {
+    const held = this.held[lane];
+    if (this.autoplay || !held.delete(key) || held.size) return;
     this.pressed[lane] = false;
     const note = this.holds[lane];
     if (!note) return;
@@ -228,6 +250,13 @@ export class ManiaGame {
     // Releases are judged 1.5x more leniently than presses.
     note.tail = judge(Math.max(0, note.end - now) / 1.5, this.windows);
     this.#record(note.tail, lane, now);
+  }
+
+  /** Lets go of every key, e.g. when the window loses focus mid-song. */
+  releaseAll(perf) {
+    this.held.forEach((keys, lane) => {
+      for (const key of [...keys]) this.keyUp(lane, perf, key);
+    });
   }
 
   update(perf, gaze) {

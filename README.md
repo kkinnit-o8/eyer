@@ -4,7 +4,7 @@ Eye-tracking games that run in the browser using your webcam.
 
 - **Ball**: a red ball floats in black space. Look at it and it jumps
   somewhere else. You have 15 seconds to catch as many as you can.
-- **Peripheral rhythm**: play any osu! map on a single key (Space), or as
+- **Peripheral rhythm**: play any osu! map on a single key (any key), or as
   4-key mania, with a twist. You can't look at the notes. Your eyes are busy
   popping hit circles that land in the corners of the screen on the beat, so
   you read the notes from the corner of your eye.
@@ -44,11 +44,16 @@ tracker sees you looking at it and reappears somewhere else.
    **Any song works too**: choose a plain mp3 (or ogg/wav) with no osu! map
    and the game listens to it and makes an "Auto" chart (see below).
 2. Pick a difficulty and settings:
-   - **Game**: **One key** (the default) is played with <kbd>Space</kbd>.
+   - **Game**: **One key** (the default) is played with any key you like:
+     <kbd>Space</kbd>, a letter, or two keys taking turns, which makes fast
+     streams much easier. A second key pressed while the first is still
+     down counts as a new press. Only <kbd>Esc</kbd> (quits), <kbd>G</kbd>
+     (shows your gaze), function keys and shortcuts (with <kbd>Ctrl</kbd>,
+     <kbd>Alt</kbd> or <kbd>Cmd</kbd> held) don't count.
      **One key, around the circle you look at** (what **Rhythm around your
-     eyes** picks) is the same chart on <kbd>Space</kbd>, but the game is
-     played around the corner circle you're looking at instead of in the
-     middle (see step 3).
+     eyes** picks) is the same chart and keys, but the game is played
+     around the corner circle you're looking at instead of in the middle
+     (see step 3).
      **4-key mania** plays the map as it is, with <kbd>D</kbd> <kbd>F</kbd>
      <kbd>J</kbd> <kbd>K</kbd>.
    - **Note density** (both one-key games): the closest two notes may be: one
@@ -63,7 +68,7 @@ tracker sees you looking at it and reappears somewhere else.
    - **Note fall time**: how long a note takes to fall. Longer is easier to
      read from the corner of your eye.
    - **Note offset**: if notes feel late compared to the music, lower it.
-     **Tap to set** measures it for you: tap <kbd>Space</kbd> along with a
+     **Tap to set** measures it for you: tap any key along with a
      metronome (after a 4-click count-in) and the typical gap between the
      clicks and your taps becomes the offset.
    - **Autoplay**: watch the map play itself, to check how the circles line
@@ -79,8 +84,8 @@ tracker sees you looking at it and reappears somewhere else.
        to stop).
 3. **One key**: a target (box or circle) sits in the middle of the screen.
    Each note starts at the edge of the screen and closes in on it: four
-   lines, one from each side, or a ring. Press <kbd>Space</kbd> when it
-   touches the target. Notes get thicker and brighter as they close in, and
+   lines, one from each side, or a ring. Press a key when it touches the
+   target. Notes get thicker and brighter as they close in, and
    the target fills up with the next note's color, brightest at the exact
    moment to press, so the timing is easy to catch from the corner of your
    eye. Colors show the beat a note lands on: white on the beat, blue on half
@@ -111,7 +116,7 @@ tracker sees you looking at it and reappears somewhere else.
 **Make a level** (next to Play) records a level for the loaded song in two
 rounds, each with the song playing:
 
-1. **Notes**: press <kbd>Space</kbd> wherever you want a note.
+1. **Notes**: press any key wherever you want a note.
 2. **Eye circles**: the song plays again with your notes ticking along;
    click (or press <kbd>Enter</kbd>) wherever you want an eye circle to land.
    Each one gets a corner, never the same corner twice in a row, and they're

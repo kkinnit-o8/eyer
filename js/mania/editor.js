@@ -1,5 +1,5 @@
 // Level editor rounds. The song plays and the player records either notes
-// (round 1, Space) or eye circles (round 2, click). They can stop whenever
+// (round 1, any key) or eye circles (round 2, click). They can stop whenever
 // they like; the level is only as long as what they recorded.
 
 import { heardTime, click } from "./clock.js";
@@ -99,11 +99,11 @@ export class EditorRound {
     ctx.textBaseline = "middle";
     ctx.fillStyle = "#fff";
     ctx.font = "700 22px system-ui, sans-serif";
-    ctx.fillText(notesRound ? "Round 1: press Space where you want a note" : "Round 2: click where you want an eye circle", cx, 48);
+    ctx.fillText(notesRound ? "Round 1: press any key where you want a note" : "Round 2: click where you want an eye circle", cx, 48);
     ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
     ctx.font = "15px system-ui, sans-serif";
     ctx.fillText(
-      `${notesRound ? "Space" : "Click or Enter"} adds · Backspace undoes · Esc when you're done (no need to map the whole song)`,
+      `${notesRound ? "Any key" : "Click or Enter"} adds · Backspace undoes · Esc when you're done (no need to map the whole song)`,
       cx,
       78,
     );

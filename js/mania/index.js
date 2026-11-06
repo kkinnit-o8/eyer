@@ -7,7 +7,7 @@ import { chartAudioFile } from "./autochart.js";
 import { listSongs, saveSong, loadSongFiles, touchSong, removeSong } from "./library.js";
 import { buildNotes, buildOneKeyNotes, chartEnd, bpmSections, beatGrid, cornerTargets, bpmSummary, snapToBeat } from "./chart.js";
 import { EditorRound, levelToOsu } from "./editor.js";
-import { ManiaGame, JUDGMENTS } from "./game.js";
+import { ManiaGame, JUDGMENTS, isTapKey } from "./game.js";
 import { OffsetTest, COUNT_IN, TAPS } from "./offset.js";
 
 const SETTINGS_KEY = "eyer.mania";
@@ -436,7 +436,7 @@ export class ManiaMode {
     this.audio.resume();
     const button = $("btn-mania-start");
     button.disabled = true;
-    // Space is a game key now; it mustn't also press a focused button.
+    // Every key is a game key now; none may also press a focused button.
     document.activeElement?.blur();
     try {
       const s = this.settings;
@@ -531,7 +531,7 @@ export class ManiaMode {
   keydown(e) {
     if (this.offsetTest) {
       if (e.code === "Escape") this.#closeOffsetTest();
-      else if (e.code === "Space") {
+      else if (!this.offsetTest.done && isTapKey(e)) {
         e.preventDefault();
         if (!e.repeat) this.#tapOffset(e.timeStamp);
       }
@@ -544,18 +544,24 @@ export class ManiaMode {
       this.open();
       return;
     }
-    const lane = this.game.keyCodes.indexOf(e.code);
+    const lane = this.game.laneOf(e);
     if (lane < 0) return;
     e.preventDefault();
-    if (!e.repeat) this.game.keyDown(lane, e.timeStamp);
+    if (!e.repeat) this.game.keyDown(lane, e.timeStamp, e.code);
   }
 
   keyup(e) {
     if (!this.game) return;
-    const lane = this.game.keyCodes.indexOf(e.code);
+    // Whatever went down as a tap comes up as one, even if Ctrl is held now.
+    const lane = this.game.heldLane(e.code);
     if (lane < 0) return;
     e.preventDefault();
-    this.game.keyUp(lane, e.timeStamp);
+    this.game.keyUp(lane, e.timeStamp, e.code);
+  }
+
+  /** The window lost focus: keys let go there never come up here. */
+  blur() {
+    this.game?.releaseAll(performance.now());
   }
 
   #finish() {
@@ -641,7 +647,7 @@ export class ManiaMode {
     const until = notes.length ? clock(notes[notes.length - 1]) : "0:00";
     setStatus(
       $("editor-notes-summary"),
-      notes.length ? `${notes.length} notes, up to ${until}.` : "No notes yet. Redo the round and press Space along with the song.",
+      notes.length ? `${notes.length} notes, up to ${until}.` : "No notes yet. Redo the round and press any key along with the song.",
       notes.length ? "ok" : "warn",
     );
     setStatus(
@@ -694,7 +700,10 @@ export class ManiaMode {
 
   editorKey(e) {
     if (!this.round) return;
-    const add = this.round.kind === "notes" ? e.code === "Space" : e.code === "Enter" || e.code === "NumpadEnter";
+    const add =
+      this.round.kind === "notes"
+        ? isTapKey(e) && e.code !== "Backspace"
+        : e.code === "Enter" || e.code === "NumpadEnter";
     if (add || e.code === "Space") e.preventDefault();
     if (add && !e.repeat) this.round.add(e.timeStamp);
     else if (e.code === "Backspace") {
