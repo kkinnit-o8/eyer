@@ -11,6 +11,9 @@ import { ManiaGame, JUDGMENTS, isTapKey } from "./game.js";
 import { OffsetTest, COUNT_IN, TAPS } from "./offset.js";
 
 const SETTINGS_KEY = "eyer.mania";
+const EYES_INTRO_KEY = "eyer.eyesIntros"; // how many times the around-your-eyes intro has had extra time
+const EYES_INTRO_PLAYS = 3;
+const EYES_INTRO_MS = 7000;
 const DEFAULTS = {
   game: "onekey", density: "half", shape: "box", rhythm: "bar", scrollMs: 1000, offsetMs: 0, autoplay: false,
   mode: "play", speed: 1, eyes: true, repeat: false,
@@ -464,6 +467,7 @@ export class ManiaMode {
         lanes: s.game === "mania" && !this.map.custom ? 4 : 1,
         shape: s.shape,
         cues: s.game === "eyes" ? "eyes" : "middle",
+        leadInMs: this.#eyesLeadIn(s, targets),
         notes: notes.map((n) => ({ ...n, time: toGame(n.time), end: n.end === null ? null : toGame(n.end) })),
         targets: targets.map((t) => ({ ...t, time: toGame(t.time) })),
         beats: beats.map((b) => toGame(b.time)),
@@ -562,6 +566,16 @@ export class ManiaMode {
   /** The window lost focus: keys let go there never come up here. */
   blur() {
     this.game?.releaseAll(performance.now());
+  }
+
+  // The first few times around your eyes, the song waits a little longer
+  // so the intro can show how to play.
+  #eyesLeadIn(s, targets) {
+    if (s.game !== "eyes" || !targets.length) return undefined;
+    const seen = Number(readStorage(EYES_INTRO_KEY)) || 0;
+    if (seen >= EYES_INTRO_PLAYS) return undefined;
+    writeStorage(EYES_INTRO_KEY, String(seen + 1));
+    return EYES_INTRO_MS;
   }
 
   #finish() {

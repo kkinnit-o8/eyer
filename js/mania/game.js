@@ -44,7 +44,11 @@ const HIT_ORDER = ["perfect", "great", "good", "ok", "meh"];
 const SNAP_COLORS = ["#c084fc", "#fde047", "#5aa9ff", "#f2f2f2", "#f2f2f2"];
 const CHARGE_SHARE = 0.4; // the target starts filling for the last 40% of a note's approach
 const CUE_EARLY_MS = 30; // a note this close before an eye circle lands already shows at its corner
-const CUE_RING = 1.6; // around your eyes: the target's half-size, in eye circle radii
+const CUE_RING = 1.6; // around your eyes: the pad's half-size, in eye circle radii
+const CUE_FAR = 6; // around your eyes: notes start this many eye circle radii out
+const COACH_COMBO = 5; // around your eyes: "Press!" shows on each note until your combo gets here
+const JUDGMENT_MS = 450; // around your eyes: how long a judgment replaces the combo
+const DEMO_BEAT_MS = 1200; // around your eyes: the intro's demo note spacing
 const LOOK_COLORS = { onBeat: "#4ade80", late: "#fbbf24" };
 
 // osu!mania hit windows (ms either side) for an Overall Difficulty.
@@ -66,7 +70,7 @@ export class ManiaGame {
    */
   constructor({
     lanes = 4, shape = "box", cues = "middle", notes, targets, beats = [], od, audio, buffer, audioFrom = 0, rate = 1,
-    scrollMs, offsetMs, autoplay, onLook, width, height,
+    scrollMs, offsetMs, autoplay, onLook, width, height, leadInMs = LEAD_IN_MS,
   }) {
     this.audio = audio;
     this.buffer = buffer;
@@ -80,6 +84,7 @@ export class ManiaGame {
     this.keys = KEY_SETS[lanes];
     this.shape = shape; // one key: "box" or "circle"
     this.cues = cues; // one key: played in the "middle", or around your "eyes" (the corner circles)
+    this.leadInMs = leadInMs; // quiet time before the first note or circle
 
     this.laneCount = lanes;
     this.lanes = Array.from({ length: lanes }, () => []);
@@ -182,7 +187,7 @@ export class ManiaGame {
   }
 
   start() {
-    const leadIn = Math.max(0, LEAD_IN_MS - this.firstEvent) / 1000;
+    const leadIn = Math.max(0, this.leadInMs - this.firstEvent) / 1000;
     this.gain = this.audio.createGain();
     this.gain.connect(this.audio.destination);
     this.source = this.audio.createBufferSource();
@@ -229,7 +234,7 @@ export class ManiaGame {
     if (!note || note.time - now > this.windows.miss) return; // nothing close: ghost tap
     this.next[lane]++;
     note.head = judge(Math.abs(now - note.time), this.windows);
-    this.#record(note.head, lane, now);
+    this.#record(note.head, lane, now, now - note.time);
     if (note.end === null) return;
     if (note.head === "miss") {
       note.tail = "miss";
@@ -290,12 +295,13 @@ export class ManiaGame {
     this.#updateEyes(now, gaze, dt);
   }
 
-  #record(judgment, lane, now) {
+  // offset: how far off a press was (negative is early), if it was one.
+  #record(judgment, lane, now, offset = null) {
     this.counts[judgment]++;
     if (judgment === "miss") this.combo = 0;
     else this.maxCombo = Math.max(this.maxCombo, ++this.combo);
     this.lastJudgment = judgment;
-    this.flashes[lane] = { judgment, at: now };
+    this.flashes[lane] = { judgment, at: now, offset };
   }
 
   #updateEyes(now, gaze, dt) {
@@ -463,20 +469,19 @@ export class ManiaGame {
     ctx.fillText(this.keys.labels[0], zone.x, zone.y + zone.half + 24);
   }
 
-  // Around your eyes: the same game, played around the eye circle you should
-  // be looking at when each note is due, so the notes are where your eyes
+  // Around your eyes: the game is played around the eye circle you should be
+  // looking at when each note is due, so the notes are where your eyes
   // already are. Notes for the next circle start closing in around it before
   // it lands, which also shows where to look next.
   #drawAroundEyes(ctx, now) {
+    if (now < this.introUntil) return; // the intro shows how it works first
     const current = this.#cornerAt(now);
     const byCorner = new Map([[current, []]]);
     for (const n of this.#notesInView(now)) {
       if (!byCorner.has(n.corner)) byCorner.set(n.corner, []);
       byCorner.get(n.corner).push(n);
     }
-    for (const [corner, notes] of byCorner) {
-      this.#drawZone(ctx, now, this.#eyeZone(corner), notes, { fill: 0.5, pressed: corner === current });
-    }
+    for (const [corner, notes] of byCorner) this.#drawPad(ctx, now, this.#eyeZone(corner), notes, corner === current);
     const flash = this.flashes[0];
     if (flash) this.#drawFlash(ctx, now, this.#eyeZone(this.#cornerAt(flash.at)));
   }
@@ -505,9 +510,69 @@ export class ManiaGame {
   #eyeZone(corner) {
     if (corner === null) return this.#middleZone();
     const { x, y } = this.#cornerPos(corner);
+    return this.#padZone(x, y);
+  }
+
+  #padZone(x, y) {
     const R = this.layout.targetR;
-    const far = R * 4.6;
+    const far = R * CUE_FAR;
     return { x, y, half: R * CUE_RING, farX: far, farY: far, farR: far };
+  }
+
+  // Around your eyes, each eye circle sits on a pad and the notes close in
+  // on the pad's edge. The circle itself has no approach ring here, so
+  // anything closing in means "press". The edge glows in the next note's
+  // color as it nears, and the whole pad lights up at the moment to press.
+  // The pad stays after you pop the circle, so there's always something to
+  // look at.
+  #drawPad(ctx, now, zone, notes, current) {
+    let charge = 0;
+    let chargeColor = SNAP_COLORS[3];
+    let light = 0;
+    let lightColor = SNAP_COLORS[3];
+    for (const n of notes) {
+      const dt = n.time - now;
+      if (dt > this.scrollMs) continue;
+      const color = n.head === "miss" ? JUDGMENTS.miss.color : SNAP_COLORS[n.snap ?? 3];
+      const p = Math.max(0, dt / this.scrollMs); // 1 far out, 0 on time
+      let alpha = Math.min(1, (1 - p) / 0.12) * (0.5 + 0.5 * (1 - p));
+      if (dt < 0) alpha *= Math.max(0, 1 + dt / 150);
+      if (alpha > 0) this.#drawApproach(ctx, zone, p, color, alpha);
+      if (n.head) continue;
+      const c = dt >= 0 ? (1 - Math.min(1, dt / (this.scrollMs * CHARGE_SHARE))) ** 2 : 0;
+      if (c > charge) {
+        charge = c;
+        chargeColor = color;
+      }
+      // A sharp peak right on time.
+      const l = dt >= 0 ? 1 - dt / 80 : 1 + dt / 160;
+      if (l > light) {
+        light = l;
+        lightColor = color;
+      }
+    }
+
+    this.#targetPath(ctx, zone, zone.half);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.07)";
+    ctx.fill();
+    if (light > 0) {
+      this.#targetPath(ctx, zone, zone.half);
+      ctx.fillStyle = withAlpha(lightColor, 0.9 * light);
+      ctx.fill();
+    }
+    if (current && this.pressed[0]) {
+      this.#targetPath(ctx, zone, zone.half);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
+      ctx.fill();
+    }
+    ctx.save();
+    this.#targetPath(ctx, zone, zone.half);
+    ctx.strokeStyle = withAlpha(charge > 0 ? chargeColor : "#ffffff", 0.75 + 0.25 * charge);
+    ctx.shadowColor = chargeColor;
+    ctx.shadowBlur = 24 * charge;
+    ctx.lineWidth = 4 + 5 * charge;
+    ctx.stroke();
+    ctx.restore();
   }
 
   // Notes from the ones just judged to one fall time ahead.
@@ -671,8 +736,9 @@ export class ManiaGame {
         continue;
       }
 
-      if (now < t.time) {
-        // Approach ring closes in on the beat.
+      if (now < t.time && this.cues !== "eyes") {
+        // Approach ring closes in on the beat. (Not around your eyes, where
+        // only notes close in, so a ring always means "press".)
         circle(ctx, x, y, R * (1 + 1.8 * ((t.time - now) / t.approach)));
         ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
         ctx.lineWidth = 2;
@@ -700,7 +766,8 @@ export class ManiaGame {
         ctx.stroke();
       }
     }
-    this.#drawStreak(ctx, now);
+    if (this.cues !== "eyes") this.#drawStreak(ctx, now);
+    else if (now >= this.introUntil) this.#drawEyesHud(ctx, now);
   }
 
   // Combo, accuracy and last judgment sit where you last popped a circle,
@@ -714,33 +781,138 @@ export class ManiaGame {
     ctx.fillStyle = now - this.streakLostAt < STREAK_LOST_MS ? "#f87171" : "rgba(255, 255, 255, 0.9)";
     ctx.font = `700 ${Math.round(R * 0.8)}px system-ui, sans-serif`;
     ctx.fillText(String(this.combo), x, y);
-    // Around your eyes, the rest goes outside the target, on the side facing
-    // the middle of the screen.
-    const atEyes = this.cues === "eyes" && !free;
-    const gap = atEyes ? R * CUE_RING + 4 : R;
-    const dir = atEyes && this.lastPopped.corner >= 2 ? -1 : 1;
-    const line = (i) => y + dir * (gap + 18) + (dir > 0 ? i : i - 1) * 17;
     ctx.font = "600 13px system-ui, sans-serif";
     ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-    ctx.fillText(`${(this.accuracy * 100).toFixed(1)}%`, x, line(0));
+    ctx.fillText(`${(this.accuracy * 100).toFixed(1)}%`, x, y + R + 18);
     if (this.lastJudgment) {
       ctx.fillStyle = JUDGMENTS[this.lastJudgment].color;
-      ctx.fillText(JUDGMENTS[this.lastJudgment].label, x, line(1));
+      ctx.fillText(JUDGMENTS[this.lastJudgment].label, x, y + R + 35);
     }
   }
 
+  // Around your eyes, everything you need is on the pad you're looking at:
+  // the combo in the middle, swapped for a moment after a press for how it
+  // went (and whether you were early or late). While you're still finding
+  // the rhythm, that's after every press and "Press!" pops up on each note
+  // as it lands; once you have it, only presses that were off show.
+  #drawEyesHud(ctx, now) {
+    const corner = this.#cornerAt(now);
+    const zone = this.#eyeZone(corner);
+    const { x, y } = zone;
+    const R = this.layout.targetR;
+    // Text outside the pad goes toward the middle of the screen.
+    const outside = (d) => y + (corner !== null && corner >= 2 ? -1 : 1) * (zone.half + d);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    // Outlined, so it reads on the red circle as well as on the dark pad.
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
+    const label = (text, ty) => {
+      ctx.strokeText(text, x, ty);
+      ctx.fillText(text, x, ty);
+    };
+
+    const learning = this.combo < COACH_COMBO;
+    const flash = this.flashes[0];
+    if (flash && now - flash.at < JUDGMENT_MS && (learning || flash.judgment !== "perfect")) {
+      const j = JUDGMENTS[flash.judgment];
+      const timing =
+        flash.offset === null || flash.judgment === "perfect" ? "" : flash.offset < 0 ? "early" : "late";
+      ctx.fillStyle = j.color;
+      ctx.font = `800 ${Math.round(R * 0.5)}px system-ui, sans-serif`;
+      label(j.label, timing ? y - R * 0.18 : y);
+      if (timing) {
+        ctx.font = `700 ${Math.round(R * 0.34)}px system-ui, sans-serif`;
+        label(timing, y + R * 0.32);
+      }
+    } else {
+      ctx.fillStyle = now - this.streakLostAt < STREAK_LOST_MS ? "#f87171" : "rgba(255, 255, 255, 0.9)";
+      ctx.font = `700 ${Math.round(R * 0.8)}px system-ui, sans-serif`;
+      label(String(this.combo), y);
+    }
+    ctx.font = "600 13px system-ui, sans-serif";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+    ctx.fillText(`${(this.accuracy * 100).toFixed(1)}%`, x, outside(16));
+
+    const coach = learning ? this.#pressCue(now) : 0;
+    if (coach > 0) this.#drawPressLabel(ctx, x, outside(42), coach);
+  }
+
+  // How strongly to show "Press!" now: rising as the next note nears,
+  // brightest on time.
+  #pressCue(now) {
+    const q = this.lanes[0];
+    let cue = 0;
+    for (let i = this.next[0]; i < q.length; i++) {
+      const dt = q[i].time - now;
+      if (dt > 300) break;
+      cue = Math.max(cue, dt >= 0 ? 1 - dt / 300 : 1 + dt / 150);
+    }
+    return cue;
+  }
+
+  #drawPressLabel(ctx, x, y, strength) {
+    ctx.save();
+    ctx.globalAlpha = strength;
+    ctx.fillStyle = "#ffffff";
+    ctx.shadowColor = "#ffffff";
+    ctx.shadowBlur = 12 * strength;
+    ctx.font = `800 ${Math.round(18 + 8 * strength)}px system-ui, sans-serif`;
+    ctx.fillText("Press!", x, y);
+    ctx.restore();
+  }
+
+  // Before the song, around your eyes: how to play, acted out by a pad
+  // drawn exactly like the ones in the game.
+  #drawEyesIntro(ctx, now) {
+    const { width, height, targetR: R } = this.layout;
+    const zone = this.#padZone(width / 2, height / 2);
+    // Text above and below where the notes start.
+    const above = Math.max(40, (zone.y - zone.farY) / 2 - 16);
+    const below = Math.min(height - 40, zone.y + zone.farY + (height - zone.y - zone.farY) / 2);
+    ctx.globalAlpha = Math.min(1, (this.introUntil - now) / 500);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#fff";
+    ctx.font = "700 22px system-ui, sans-serif";
+    ctx.fillText("Look at the red circle in each corner", width / 2, above);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+    ctx.font = "18px system-ui, sans-serif";
+    ctx.fillText("Press any key when a ring closes in on its edge", width / 2, above + 30);
+
+    const k = Math.floor(now / DEMO_BEAT_MS);
+    const demo = [k, k + 1, k + 2].map((i) => ({ time: i * DEMO_BEAT_MS, snap: 3, head: null }));
+    this.#drawPad(ctx, now, zone, demo, false);
+    circle(ctx, zone.x, zone.y, R);
+    ctx.fillStyle = "#ff2a1f";
+    ctx.fill();
+    const dt = (k + 1) * DEMO_BEAT_MS - now;
+    const since = now - k * DEMO_BEAT_MS;
+    const cue = Math.max(dt <= 300 ? 1 - dt / 300 : 0, since <= 150 ? 1 - since / 150 : 0);
+    if (cue > 0) this.#drawPressLabel(ctx, zone.x, zone.y + zone.half + 32, cue);
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+    ctx.font = "15px system-ui, sans-serif";
+    ctx.fillText("The pad lights up at the exact moment · Miss a circle and you lose your streak", width / 2, below - 13);
+    ctx.fillText(this.keys.labels.join("  "), width / 2, below + 13);
+    ctx.globalAlpha = 1;
+  }
+
   #drawIntro(ctx, now) {
+    if (this.cues === "eyes" && this.targets.length) {
+      this.#drawEyesIntro(ctx, now);
+      return;
+    }
     const { width, height } = this.layout;
     ctx.globalAlpha = Math.min(1, (this.introUntil - now) / 500);
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "#fff";
     ctx.font = "700 22px system-ui, sans-serif";
-    const lines = !this.targets.length
-      ? ["Practice", "No corner circles: look wherever you like", "Learn the pattern"]
-      : this.cues === "eyes"
-        ? ["Look at each corner circle to pop it", "Press as each note closes in around it", "Miss a circle and you lose your streak"]
-        : ["Look at each corner circle to pop it", "Miss one and you lose your streak", "Read the notes from the corner of your eye"];
+    const lines = this.targets.length
+      ? ["Look at each corner circle to pop it", "Miss one and you lose your streak", "Read the notes from the corner of your eye"]
+      : ["Practice", "No corner circles: look wherever you like", "Learn the pattern"];
     ctx.fillText(lines[0], width / 2, height * 0.38);
     ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
     ctx.font = "16px system-ui, sans-serif";

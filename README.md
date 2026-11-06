@@ -90,14 +90,29 @@ tracker sees you looking at it and reappears somewhere else.
    moment to press, so the timing is easy to catch from the corner of your
    eye. Colors show the beat a note lands on: white on the beat, blue on half
    beats, yellow on quarter beats, purple for anything else. The target
-   pulses on every beat of the song. **Around your eyes**: the same target,
-   just smaller, sits around a corner circle, and the notes close in on it
-   from a few circles out. A note shows at the circle you should be looking
-   at when it's due: the last one to have landed by then. Notes for the next
-   circle start closing in around it before it lands, so you can see where
-   to look next. There's no no-look middle in this game, since nothing is
-   there. With the eye challenge off in practice, it's played in the middle
-   of the screen instead. **4-key mania**: notes are circles that fall into the round
+   pulses on every beat of the song. **Around your eyes**: each corner circle
+   sits on a pad (a box or a circle, from **Shape**), and the notes close in
+   on the pad's edge from a few circles out. Press when one reaches the
+   edge:
+   - Only notes close in here (the corner circles just fade in), so
+     anything moving toward the pad means "press".
+   - The pad's edge glows in the next note's color as it nears, and the
+     whole pad lights up at the exact moment to press.
+   - The pad stays after you pop its circle, so there's always something to
+     look at.
+   - Right after a press, the circle shows how it went, and whether you
+     were early or late. While your combo is under 5 (so at the start, and
+     after a miss) that's every press, and "Press!" pops up on each note as
+     it lands. After that, only presses that were off show.
+   - The first 3 times you play it, the song waits a few seconds while a
+     demo pad shows how it works.
+
+   A note shows at the circle you should be looking at when it's due: the
+   last one to have landed by then. Notes for the next circle start closing
+   in around it before it lands, so you can see where to look next. There's
+   no no-look middle in this game, since nothing is there. With the eye
+   challenge off in practice, it's played in the middle of the screen
+   instead. **4-key mania**: notes are circles that fall into the round
    receptors at the bottom.
 4. Corner hit circles appear with an approach ring that closes on the beat.
    Look at one to pop it: a green burst means on the beat, yellow means late.
