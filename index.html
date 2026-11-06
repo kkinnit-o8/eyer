@@ -19,6 +19,7 @@
       <ul class="modes">
         <li><strong>Ball:</strong> look at the red ball and it jumps somewhere else. Catch as many as you can in 15&nbsp;seconds.</li>
         <li><strong>Peripheral rhythm:</strong> play any osu! map on one key (or as 4-key mania) while your eyes pop hit circles in the corners. The notes are only in the corner of your eye.</li>
+        <li><strong>Rhythm around your eyes:</strong> the same, but the notes close in around the circle you're looking at.</li>
       </ul>
       <ul class="tips">
         <li>Your webcam tracks your eyes. The video stays on your device.</li>
@@ -165,6 +166,7 @@
       <div class="buttons">
         <button id="btn-play" class="primary">Ball</button>
         <button id="btn-mania" class="primary">Peripheral rhythm</button>
+        <button id="btn-mania-eyes" class="primary">Rhythm around your eyes</button>
         <button id="btn-recalibrate-check">Recalibrate</button>
       </div>
       <p class="hint">Press <kbd>G</kbd> during the game to show or hide the ring. Tracking off? <button class="link" data-open-tutorial>See the tips</button></p>
@@ -186,8 +188,9 @@
 
   <section class="screen" data-screen="mania-menu">
     <div class="panel wide">
-      <h2>Peripheral rhythm</h2>
-      <p class="hint about">Notes fall down the middle, but you can't look at them. Hit circles land in the corners on the beat: look at each one to pop it before its timer runs out, or you lose your streak. Read the notes from the corner of your eye. Stare at the middle and the notes disappear.</p>
+      <h2 id="mania-title">Peripheral rhythm</h2>
+      <p class="hint about" data-about="eyes" hidden>Hit circles land in the corners on the beat: look at each one to pop it before its timer runs out, or you lose your streak. The game happens around the circle you're looking at: notes close in on it, and you press Space as each one touches it.</p>
+      <p class="hint about" data-about="middle">Notes fall down the middle, but you can't look at them. Hit circles land in the corners on the beat: look at each one to pop it before its timer runs out, or you lose your streak. Read the notes from the corner of your eye. Stare at the middle and the notes disappear.</p>
       <div class="song-row">
         <select id="mania-library" aria-label="Saved songs" hidden></select>
         <label id="mania-drop" class="dropzone">
@@ -234,7 +237,7 @@
           <label for="mania-game">Game</label>
           <select id="mania-game">
             <option value="onekey">One key (Space)</option>
-            <option value="eyes">One key, notes at your eyes (Space)</option>
+            <option value="eyes">One key, around the circle you look at (Space)</option>
             <option value="mania">4-key mania (D F J K)</option>
           </select>
           <label for="mania-density" data-one-key>Note density</label>
@@ -243,8 +246,8 @@
             <option value="half">Half beats at most</option>
             <option value="all">All rhythms (quarter beats)</option>
           </select>
-          <label for="mania-shape" data-middle-cues>Shape</label>
-          <select id="mania-shape" data-middle-cues>
+          <label for="mania-shape" data-one-key>Shape</label>
+          <select id="mania-shape" data-one-key>
             <option value="box">Box, with lines closing in</option>
             <option value="circle">Circle, with rings closing in</option>
           </select>

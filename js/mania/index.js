@@ -56,11 +56,33 @@ export class ManiaMode {
     this.#wire();
   }
 
-  async open() {
+  /**
+   * Opens the rhythm menu. eyes: true picks the game around your eyes,
+   * false moves off it (to one key in the middle); leave it out to keep the
+   * last game.
+   */
+  async open({ eyes } = {}) {
+    const s = this.settings;
+    const game = eyes ? "eyes" : eyes === false && s.game === "eyes" ? "onekey" : s.game;
+    if (game !== s.game) {
+      s.game = game;
+      $("mania-game").value = game;
+      this.#save();
+      this.#showGame();
+      if (this.map) this.#chart();
+    }
     this.setState("mania-menu");
     await this.#refreshLibrary();
     // Pick up where you left off: the song you played last.
     if (!this.map && this.library.length) this.#loadSaved(this.library[0].id);
+  }
+
+  // The settings and the description that go with the chosen game.
+  #showGame() {
+    const eyes = this.settings.game === "eyes";
+    for (const el of document.querySelectorAll("[data-one-key]")) el.hidden = this.settings.game === "mania";
+    for (const el of document.querySelectorAll("[data-about]")) el.hidden = (el.dataset.about === "eyes") !== eyes;
+    $("mania-title").textContent = eyes ? "Rhythm around your eyes" : "Peripheral rhythm";
   }
 
   // ---- Map loading and settings -----------------------------------------
@@ -106,15 +128,11 @@ export class ManiaMode {
     const density = $("mania-density");
     game.value = s.game;
     density.value = s.density;
-    const showDensity = () => {
-      for (const el of document.querySelectorAll("[data-one-key]")) el.hidden = s.game === "mania";
-      for (const el of document.querySelectorAll("[data-middle-cues]")) el.hidden = s.game !== "onekey";
-    };
-    showDensity();
+    this.#showGame();
     game.addEventListener("change", () => {
       s.game = game.value;
       this.#save();
-      showDensity();
+      this.#showGame();
       this.#chart();
     });
     density.addEventListener("change", () => {
@@ -544,7 +562,7 @@ export class ManiaMode {
     this.game.stop();
     const r = this.game.results();
     const atEyes = this.game.cues === "eyes";
-    const keys = this.game.laneCount === 4 ? "4 keys" : atEyes ? "notes at your eyes" : "one key";
+    const keys = this.game.laneCount === 4 ? "4 keys" : atEyes ? "around your eyes" : "one key";
     const practice = this.settings.mode === "practice" ? ` · practice ${this.game.rate}×` : "";
     this.game = null;
 
@@ -566,7 +584,7 @@ export class ManiaMode {
       ...row("On the beat", `${e.onBeat} / ${e.total}`, "#4ade80"),
       ...row("Late", e.late, "#fbbf24"),
       ...row("Missed", e.missed, "#a3a3a3"),
-      // With the notes at your eyes there's nothing in the middle to stay away from.
+      // Around your eyes there's nothing in the middle to stay away from.
       ...(atEyes ? [] : row("Time in the middle", `${(e.centerMs / 1000).toFixed(1)} s`, "#f87171")),
       // Each popped circle can teach the tracker where your eyes really were.
       ...(this.tunedCount() === null ? [] : row("Tracking tuned", `${this.tunedCount() - this.tunedAtStart}×`)),
