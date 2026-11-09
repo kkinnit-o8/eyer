@@ -1,5 +1,5 @@
-// Peripheral rhythm mode (one key, or 4-key mania): loading an osu! map,
-// settings, play, and results.
+// The rhythm games (one key, around your eyes, 4-key mania, and osu! with
+// your eyes): loading an osu! map, settings, play, and results.
 
 import { $, setStatus, readStorage, writeStorage } from "../ui.js";
 import { extractEntries, mapsFromEntries } from "./osu.js";
@@ -9,6 +9,7 @@ import { buildNotes, buildOneKeyNotes, chartEnd, bpmSections, beatGrid, cornerTa
 import { EditorRound, levelToOsu } from "./editor.js";
 import { ManiaGame, JUDGMENTS, isTapKey } from "./game.js";
 import { OffsetTest, COUNT_IN, TAPS } from "./offset.js";
+import { OsuGame, buildOsuObjects, retimeObject, hasPositions, CIRCLE_SIZES, APPROACH_SLOWER } from "./osugame.js";
 
 const SETTINGS_KEY = "eyer.mania";
 const EYES_INTRO_KEY = "eyer.eyesIntros"; // how many times the around-your-eyes intro has had extra time
@@ -16,8 +17,9 @@ const EYES_INTRO_PLAYS = 3;
 const EYES_INTRO_MS = 7000;
 const DEFAULTS = {
   game: "onekey", density: "half", shape: "box", rhythm: "bar", scrollMs: 1000, offsetMs: 0, autoplay: false,
-  mode: "play", speed: 1, eyes: true, repeat: false,
+  mode: "play", speed: 1, eyes: true, repeat: false, osuSize: "bigger", osuApproach: "map",
 };
+const HEADINGS = { eyes: "Rhythm around your eyes", osu: "osu! with your eyes" };
 const MIN_TARGET_GAP_MS = 450;
 const PREROLL_MS = 3000; // practice: music starts this long before the section
 
@@ -27,14 +29,15 @@ export class ManiaMode {
    * point (or null), exit() goes back to the main menu. learn(x, y, perf)
    * reports that the player looked at (x, y) (viewport fractions) at perf;
    * tunedCount() is how often tracking has corrected itself (null without a
-   * camera).
+   * camera). aimSlack() is how far off (in pixels) the tracker typically is.
    */
-  constructor({ setState, gaze, exit, learn, tunedCount }) {
+  constructor({ setState, gaze, exit, learn, tunedCount, aimSlack }) {
     this.setState = setState;
     this.gaze = gaze;
     this.exit = exit;
     this.learn = learn;
     this.tunedCount = tunedCount;
+    this.aimSlack = aimSlack;
     this.maps = [];
     this.audioFiles = new Map();
     this.song = null; // { id, title, artist, addedAt, playedAt } of the loaded song
@@ -60,13 +63,14 @@ export class ManiaMode {
   }
 
   /**
-   * Opens the rhythm menu. eyes: true picks the game around your eyes,
-   * false moves off it (to one key in the middle); leave it out to keep the
-   * last game.
+   * Opens the rhythm menu. pick: "eyes" or "osu" picks that game,
+   * "peripheral" one of the peripheral games (keeping 4-key mania if that
+   * was last); leave it out to keep the last game.
    */
-  async open({ eyes } = {}) {
+  async open({ pick } = {}) {
     const s = this.settings;
-    const game = eyes ? "eyes" : eyes === false && s.game === "eyes" ? "onekey" : s.game;
+    const peripheral = s.game === "mania" ? "mania" : "onekey";
+    const game = pick === "peripheral" ? peripheral : pick ?? s.game;
     if (game !== s.game) {
       s.game = game;
       $("mania-game").value = game;
@@ -82,10 +86,22 @@ export class ManiaMode {
 
   // The settings and the description that go with the chosen game.
   #showGame() {
-    const eyes = this.settings.game === "eyes";
-    for (const el of document.querySelectorAll("[data-one-key]")) el.hidden = this.settings.game === "mania";
-    for (const el of document.querySelectorAll("[data-about]")) el.hidden = (el.dataset.about === "eyes") !== eyes;
-    $("mania-title").textContent = eyes ? "Rhythm around your eyes" : "Peripheral rhythm";
+    const { game } = this.settings;
+    this.#showFields();
+    const about = game === "eyes" || game === "osu" ? game : "middle";
+    for (const el of document.querySelectorAll("[data-about]")) el.hidden = el.dataset.about !== about;
+    $("mania-heading").textContent = HEADINGS[game] ?? "Peripheral rhythm";
+  }
+
+  // Settings rows for practice only (data-practice) or for some games
+  // (data-for="onekey eyes").
+  #showFields() {
+    const { game, mode } = this.settings;
+    for (const el of document.querySelectorAll("[data-practice], [data-for]")) {
+      el.hidden =
+        (el.hasAttribute("data-practice") && mode !== "practice") ||
+        (el.hasAttribute("data-for") && !el.dataset.for.split(" ").includes(game));
+    }
   }
 
   // ---- Map loading and settings -----------------------------------------
@@ -149,6 +165,18 @@ export class ManiaMode {
       s.shape = shape.value;
       this.#save();
     });
+    const osuSize = $("mania-osu-size");
+    osuSize.value = s.osuSize;
+    osuSize.addEventListener("change", () => {
+      s.osuSize = osuSize.value;
+      this.#save();
+    });
+    const osuApproach = $("mania-osu-approach");
+    osuApproach.value = s.osuApproach;
+    osuApproach.addEventListener("change", () => {
+      s.osuApproach = osuApproach.value;
+      this.#save();
+    });
 
     const rhythm = $("mania-rhythm");
     rhythm.value = s.rhythm;
@@ -209,15 +237,12 @@ export class ManiaMode {
   #wirePractice() {
     const s = this.settings;
     const mode = $("mania-mode");
-    const showPractice = () => {
-      for (const el of document.querySelectorAll("[data-practice]")) el.hidden = s.mode !== "practice";
-    };
     mode.value = s.mode;
-    showPractice();
+    this.#showFields();
     mode.addEventListener("change", () => {
       s.mode = mode.value;
       this.#save();
-      showPractice();
+      this.#showFields();
     });
     const speed = $("mania-speed");
     speed.value = String(s.speed);
@@ -373,21 +398,24 @@ export class ManiaMode {
     this.#chart();
   }
 
-  // Builds the notes for the chosen game: the map as 4-key mania, or
-  // collapsed onto one key.
+  // Builds the notes for the chosen game: the map as 4-key mania, collapsed
+  // onto one key, or as osu! objects.
   #chart() {
     if (!this.map) return;
     const s = this.settings;
     // Your own levels are one-key, with every note exactly as you placed it.
+    // osu! lays out half-beat notes for maps without positions of their own.
     this.notes = this.map.custom
       ? buildOneKeyNotes(this.map, this.timing.sections, "all")
       : s.game === "mania"
         ? buildNotes(this.map)
-        : buildOneKeyNotes(this.map, this.timing.sections, s.density);
+        : buildOneKeyNotes(this.map, this.timing.sections, s.game === "osu" ? "half" : s.density);
     this.end = chartEnd(this.notes);
+    this.objects = s.game === "osu" ? buildOsuObjects(this.map, this.timing.sections, this.notes) : [];
+    for (const o of this.objects) this.end = Math.max(this.end, o.end);
     this.#resetSection();
     this.#showInfo();
-    $("btn-mania-start").disabled = !this.#audioName() || !this.notes.length;
+    $("btn-mania-start").disabled = !this.#audioName() || !(s.game === "osu" ? this.objects.length : this.notes.length);
     $("btn-editor").disabled = !this.#audioName();
   }
 
@@ -403,6 +431,20 @@ export class ManiaMode {
     const info = $("mania-info");
     if (!this.#audioName()) {
       setStatus(info, `The song file "${this.map.audioFilename}" isn't in the map. Add it alongside the .osu file.`, "bad");
+      return;
+    }
+    if (this.settings.game === "osu") {
+      const count = (type) => {
+        const n = this.objects.filter((o) => o.type === type).length;
+        return `${n} ${type}${n === 1 ? "" : "s"}`;
+      };
+      setStatus(
+        info,
+        hasPositions(this.map)
+          ? `osu!standard · ${clock(this.end)} · ${count("circle")}, ${count("slider")}, ${count("spinner")} · ` +
+              `CS ${this.map.cs}, AR ${this.map.ar}, OD ${this.map.od}.`
+          : `${clock(this.end)} · ${this.objects.length} circles. This map has no osu! positions, so they're placed for you along a path.`,
+      );
       return;
     }
     const bpm = bpmSummary(this.timing.sections, this.end);
@@ -446,43 +488,47 @@ export class ManiaMode {
       const practice = s.mode === "practice";
       const rate = practice ? s.speed : 1;
       const buffer = await this.#buffer();
-      const beats = beatGrid(this.timing.sections, this.end + 2000);
-      let notes = this.notes;
-      // Levels from the editor bring their own eye circles.
-      const own = this.map.circles;
-      let targets =
-        practice && !s.eyes ? [] : own.length ? own : cornerTargets(beats, s.rhythm, notes[0].time - 1500, this.end);
-      let audioFrom = 0;
-      if (practice) {
-        const { from, to } = this.section;
-        notes = notes.filter((n) => n.time >= from && n.time <= to);
-        if (!notes.length) throw new RangeError("No notes in that section.");
-        targets = targets.filter((t) => t.time >= notes[0].time - 1500 && t.time <= to);
-        // Start the music a little before the section, so you can hear your way in.
-        audioFrom = Math.max(0, notes[0].time - PREROLL_MS * rate);
+      if (s.game === "osu") {
+        this.game = this.#osuGame(buffer, rate, practice);
+      } else {
+        const beats = beatGrid(this.timing.sections, this.end + 2000);
+        let notes = this.notes;
+        // Levels from the editor bring their own eye circles.
+        const own = this.map.circles;
+        let targets =
+          practice && !s.eyes ? [] : own.length ? own : cornerTargets(beats, s.rhythm, notes[0].time - 1500, this.end);
+        let audioFrom = 0;
+        if (practice) {
+          const { from, to } = this.section;
+          notes = notes.filter((n) => n.time >= from && n.time <= to);
+          if (!notes.length) throw new RangeError("No notes in that section.");
+          targets = targets.filter((t) => t.time >= notes[0].time - 1500 && t.time <= to);
+          // Start the music a little before the section, so you can hear your way in.
+          audioFrom = Math.max(0, notes[0].time - PREROLL_MS * rate);
+        }
+        // The game runs in real time from where the music starts.
+        const toGame = (t) => (t - audioFrom) / rate;
+        this.game = new ManiaGame({
+          lanes: s.game === "mania" && !this.map.custom ? 4 : 1,
+          shape: s.shape,
+          cues: s.game === "eyes" ? "eyes" : "middle",
+          leadInMs: this.#eyesLeadIn(s, targets),
+          notes: notes.map((n) => ({ ...n, time: toGame(n.time), end: n.end === null ? null : toGame(n.end) })),
+          targets: targets.map((t) => ({ ...t, time: toGame(t.time) })),
+          beats: beats.map((b) => toGame(b.time)),
+          audioFrom,
+          rate,
+          od: this.map.od,
+          audio: this.audio,
+          buffer,
+          scrollMs: this.settings.scrollMs,
+          offsetMs: this.settings.offsetMs,
+          autoplay: this.settings.autoplay,
+          onLook: (x, y, perf) => this.learn(x / this.width, y / this.height, perf),
+          width: this.width,
+          height: this.height,
+        });
       }
-      // The game runs in real time from where the music starts.
-      const toGame = (t) => (t - audioFrom) / rate;
-      this.game = new ManiaGame({
-        lanes: s.game === "mania" && !this.map.custom ? 4 : 1,
-        shape: s.shape,
-        cues: s.game === "eyes" ? "eyes" : "middle",
-        leadInMs: this.#eyesLeadIn(s, targets),
-        notes: notes.map((n) => ({ ...n, time: toGame(n.time), end: n.end === null ? null : toGame(n.end) })),
-        targets: targets.map((t) => ({ ...t, time: toGame(t.time) })),
-        beats: beats.map((b) => toGame(b.time)),
-        audioFrom,
-        rate,
-        od: this.map.od,
-        audio: this.audio,
-        buffer,
-        scrollMs: this.settings.scrollMs,
-        offsetMs: this.settings.offsetMs,
-        autoplay: this.settings.autoplay,
-        onLook: (x, y, perf) => this.learn(x / this.width, y / this.height, perf),
-        width: this.width,
-        height: this.height,
-      });
       this.tunedAtStart = this.tunedCount();
       this.game.start();
       if (this.library.some((s) => s.id === this.song.id)) touchSong(this.song).catch(() => {});
@@ -495,6 +541,41 @@ export class ManiaMode {
     } finally {
       button.disabled = false;
     }
+  }
+
+  // osu! with your eyes: the map's objects (just the section, in practice).
+  #osuGame(buffer, rate, practice) {
+    const s = this.settings;
+    let objects = this.objects;
+    let audioFrom = 0;
+    if (practice) {
+      const { from, to } = this.section;
+      objects = objects.filter((o) => o.time >= from && o.time <= to);
+      if (!objects.length) throw new RangeError("Nothing to play in that section.");
+      audioFrom = Math.max(0, objects[0].time - PREROLL_MS * rate);
+    }
+    const toGame = (t) => (t - audioFrom) / rate;
+    // Circles laid out for maps without positions get a middling size and speed.
+    const own = hasPositions(this.map);
+    return new OsuGame({
+      objects: objects.map((o) => retimeObject(o, toGame)),
+      colors: this.map.colors,
+      cs: own ? this.map.cs : 4,
+      ar: own ? this.map.ar : 6,
+      od: this.map.od,
+      size: CIRCLE_SIZES[s.osuSize] ?? 1,
+      slower: APPROACH_SLOWER[s.osuApproach] ?? 0,
+      slack: this.aimSlack(),
+      audio: this.audio,
+      buffer,
+      audioFrom,
+      rate,
+      offsetMs: s.offsetMs,
+      autoplay: s.autoplay,
+      onLook: (x, y, perf, look) => this.learn(x / this.width, y / this.height, perf, look),
+      width: this.width,
+      height: this.height,
+    });
   }
 
   async #buffer() {
@@ -563,6 +644,18 @@ export class ManiaMode {
     this.game.keyUp(lane, e.timeStamp, e.code);
   }
 
+  // osu! takes clicks as well as keys.
+  pointerdown(e) {
+    if (this.game?.kind !== "osu") return;
+    e.preventDefault();
+    this.game.keyDown(0, e.timeStamp, `mouse${e.button}`);
+  }
+
+  pointerup(e) {
+    if (this.game?.kind !== "osu") return;
+    this.game.keyUp(0, e.timeStamp, `mouse${e.button}`);
+  }
+
   /** The window lost focus: keys let go there never come up here. */
   blur() {
     this.game?.releaseAll(performance.now());
@@ -582,7 +675,11 @@ export class ManiaMode {
     this.game.stop();
     const r = this.game.results();
     const atEyes = this.game.cues === "eyes";
-    const keys = this.game.laneCount === 4 ? "4 keys" : atEyes ? "around your eyes" : "one key";
+    const keys =
+      this.game.kind === "osu" ? "osu! with your eyes"
+      : this.game.laneCount === 4 ? "4 keys"
+      : atEyes ? "around your eyes"
+      : "one key";
     const practice = this.settings.mode === "practice" ? ` · practice ${this.game.rate}×` : "";
     this.game = null;
 
@@ -595,19 +692,25 @@ export class ManiaMode {
       return [dt, dd];
     };
     $("mr-notes").replaceChildren(
+      ...(r.grade ? [...row("Grade", r.grade), ...row("Score", r.score.toLocaleString())] : []),
       ...row("Max combo", r.maxCombo),
-      ...Object.entries(JUDGMENTS).flatMap(([key, j]) => row(j.label, r.counts[key], j.color)),
+      ...Object.entries(r.judgments ?? JUDGMENTS).flatMap(([key, j]) => row(j.label, r.counts[key], j.color)),
     );
     const e = r.eyes;
-    $("mr-eyes").parentElement.hidden = !e.total;
+    // Each popped circle (or hit, in osu!) can teach the tracker where your eyes really were.
+    const tuned = this.tunedCount() === null ? [] : row("Tracking tuned", `${this.tunedCount() - this.tunedAtStart}×`);
+    $("mr-eyes").parentElement.hidden = !e.total && !tuned.length;
     $("mr-eyes").replaceChildren(
-      ...row("On the beat", `${e.onBeat} / ${e.total}`, "#4ade80"),
-      ...row("Late", e.late, "#fbbf24"),
-      ...row("Missed", e.missed, "#a3a3a3"),
-      // Around your eyes there's nothing in the middle to stay away from.
-      ...(atEyes ? [] : row("Time in the middle", `${(e.centerMs / 1000).toFixed(1)} s`, "#f87171")),
-      // Each popped circle can teach the tracker where your eyes really were.
-      ...(this.tunedCount() === null ? [] : row("Tracking tuned", `${this.tunedCount() - this.tunedAtStart}×`)),
+      ...(e.total
+        ? [
+            ...row("On the beat", `${e.onBeat} / ${e.total}`, "#4ade80"),
+            ...row("Late", e.late, "#fbbf24"),
+            ...row("Missed", e.missed, "#a3a3a3"),
+            // Around your eyes there's nothing in the middle to stay away from.
+            ...(atEyes ? [] : row("Time in the middle", `${(e.centerMs / 1000).toFixed(1)} s`, "#f87171")),
+          ]
+        : []),
+      ...tuned,
     );
     this.setState("mania-results");
   }

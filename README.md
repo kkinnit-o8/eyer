@@ -11,6 +11,9 @@ Eye-tracking games that run in the browser using your webcam.
 - **Rhythm around your eyes**: the same rhythm game, but played around the
   corner circle you're looking at, so the notes are right where your eyes
   are.
+- **osu! with your eyes**: osu! itself, with your eyes as the cursor. Real
+  osu!standard maps, with circles, sliders and spinners, and any key (or a
+  click) to hit.
 
 ## How to play
 
@@ -25,8 +28,8 @@ Eye-tracking games that run in the browser using your webcam.
    the grey targets light up red when you look at them. If tracking is off,
    recalibrate.
 5. **Pick a game** from the tracking check screen: **Ball**, **Peripheral
-   rhythm** or **Rhythm around your eyes**. Both rhythm buttons open the same
-   menu, with that game picked.
+   rhythm**, **Rhythm around your eyes** or **osu! with your eyes**. The
+   rhythm buttons all open the same song menu, with that game picked.
 
 ### Ball
 
@@ -187,6 +190,53 @@ the single lane can't be watched from right beside it.
 Press <kbd>G</kbd> during the game to show where the tracker thinks you're
 looking. Press <kbd>Space</kbd> on the results screen to play again.
 
+### osu! with your eyes
+
+Pick **osu! with your eyes** on the tracking check screen (or as the Game in
+the song menu) and load an osu! map. It plays like osu!standard, with your gaze
+as the cursor:
+
+- **Circles**: look at the circle and press any key (or click) as its
+  approach circle closes in. Timing is judged like osu!, from the map's OD:
+  300, 100, 50 or a miss. Press far too early and the circle just shakes.
+  Like osu!, circles have to be hit in order.
+- **Sliders**: hit the start, then hold the key and keep your eyes on the
+  ball as it moves. Every tick, turn and the end you follow counts. Miss a
+  tick or a turn and your combo breaks, and the slider scores by how much of
+  it you followed.
+- **Spinners**: circle your eyes around the middle, in one direction. They
+  ask for far fewer turns than osu! does with a mouse (0.6 a second), and no
+  key.
+- Combo colors and numbers, approach rate, circle size, follow points
+  between circles and stacked circles all come from the map.
+
+Made for eyes rather than a mouse:
+
+- A circle **lights up** when the tracker sees your eyes on it, so you
+  know your aim will count. (<kbd>G</kbd> shows where it thinks you're
+  looking.)
+- **Tracking is a little behind your eyes**, so a press waits up to 0.18 s
+  for your gaze to land on the circle, and is then judged at the moment you
+  pressed.
+- **Hit areas** reach a bit past each circle's edge, more if your
+  calibration was less precise (the same allowance the ball game uses).
+- **Circle size** can be bigger than the map says (the default is
+  "Bigger"), and **Approach speed** can be slower, for more time to move your
+  eyes.
+- **Every hit teaches the tracker**: your eyes were on that circle as you
+  pressed, so it becomes a calibration sample (at most one every half a
+  second), like popped corner circles in the other games.
+
+Songs without an osu!standard map (osu!mania maps, plain mp3s with an auto
+chart, your own levels) still work: their notes (half beats at most) are
+laid out as circles along a path that wanders around the screen, further
+apart for longer gaps, with a new combo every bar. The layout is the same
+every time you play that song.
+
+Practice mode (speed, section, repeat) and autoplay work here too. Results
+show a grade (SS to D, like osu!), score, max combo and your 300s, 100s,
+50s and misses.
+
 ## Getting the best tracking
 
 The in-game tutorial covers this with pictures. In short:
@@ -254,6 +304,8 @@ help.
 | `js/mania/editor.js` | Level editor recording rounds and saving levels as `.osu` |
 | `js/mania/chart.js` | 4-lane and one-key charts, beat grid, corner circles on the beat |
 | `js/mania/game.js` | Peripheral rhythm gameplay: timing, judgments, gaze rules, drawing |
+| `js/mania/osugame.js` | osu! with your eyes: objects, aiming with your gaze, sliders, spinners, drawing |
+| `js/mania/sliders.js` | osu! slider paths (Bézier, arc, linear, Catmull) |
 | `js/mania/index.js` | Peripheral rhythm screens: map loading, settings, results |
 
 Gameplay constants are at the top of each game file, for example round length

@@ -20,6 +20,7 @@
         <li><strong>Ball:</strong> look at the red ball and it jumps somewhere else. Catch as many as you can in 15&nbsp;seconds.</li>
         <li><strong>Peripheral rhythm:</strong> play any osu! map on one key (or as 4-key mania) while your eyes pop hit circles in the corners. The notes are only in the corner of your eye.</li>
         <li><strong>Rhythm around your eyes:</strong> the same, but the notes close in around the circle you're looking at.</li>
+        <li><strong>osu! with your eyes:</strong> real osu! maps, with your eyes as the cursor and any key to click.</li>
       </ul>
       <ul class="tips">
         <li>Your webcam tracks your eyes. The video stays on your device.</li>
@@ -167,6 +168,7 @@
         <button id="btn-play" class="primary">Ball</button>
         <button id="btn-mania" class="primary">Peripheral rhythm</button>
         <button id="btn-mania-eyes" class="primary">Rhythm around your eyes</button>
+        <button id="btn-osu" class="primary">osu! with your eyes</button>
         <button id="btn-recalibrate-check">Recalibrate</button>
       </div>
       <p class="hint">Press <kbd>G</kbd> during the game to show or hide the ring. Tracking off? <button class="link" data-open-tutorial>See the tips</button></p>
@@ -188,7 +190,8 @@
 
   <section class="screen" data-screen="mania-menu">
     <div class="panel wide">
-      <h2 id="mania-title">Peripheral rhythm</h2>
+      <h2 id="mania-heading">Peripheral rhythm</h2>
+      <p class="hint about" data-about="osu" hidden>osu!, with your eyes as the cursor. Look at a circle and press any key (or click) as its ring closes in. Hold the key and follow sliders with your eyes, and circle your eyes around spinners. Songs without an osu! map get circles placed for them.</p>
       <p class="hint about" data-about="eyes" hidden>Hit circles land in the corners on the beat: look at each one to pop it before its timer runs out, or you lose your streak. The game happens around the circle you're looking at: notes close in on it, and you press any key as each one touches it.</p>
       <p class="hint about" data-about="middle">Notes fall down the middle, but you can't look at them. Hit circles land in the corners on the beat: look at each one to pop it before its timer runs out, or you lose your streak. Read the notes from the corner of your eye. Stare at the middle and the notes disappear.</p>
       <div class="song-row">
@@ -230,8 +233,8 @@
             <input id="mania-to" type="range" step="1" aria-label="Section end">
             <output id="mania-section-value"></output>
           </div>
-          <label for="mania-eyes" data-practice>Eye challenge</label>
-          <span class="check" data-practice><input id="mania-eyes" type="checkbox"> Corner circles and the no-look middle. Untick to practice just the notes, looking wherever you like</span>
+          <label for="mania-eyes" data-practice data-for="onekey eyes mania">Eye challenge</label>
+          <span class="check" data-practice data-for="onekey eyes mania"><input id="mania-eyes" type="checkbox"> Corner circles and the no-look middle. Untick to practice just the notes, looking wherever you like</span>
           <label for="mania-repeat" data-practice>Repeat</label>
           <span class="check" data-practice><input id="mania-repeat" type="checkbox"> Play the section again when it ends</span>
           <label for="mania-game">Game</label>
@@ -239,26 +242,39 @@
             <option value="onekey">One key (any key)</option>
             <option value="eyes">One key, around the circle you look at (any key)</option>
             <option value="mania">4-key mania (D F J K)</option>
+            <option value="osu">osu! with your eyes (any key or click)</option>
           </select>
-          <label for="mania-density" data-one-key>Note density</label>
-          <select id="mania-density" data-one-key>
+          <label for="mania-osu-size" data-for="osu">Circle size</label>
+          <select id="mania-osu-size" data-for="osu">
+            <option value="map">As the map says</option>
+            <option value="bigger">Bigger (easier to aim with your eyes)</option>
+            <option value="biggest">Biggest</option>
+          </select>
+          <label for="mania-osu-approach" data-for="osu">Approach speed</label>
+          <select id="mania-osu-approach" data-for="osu">
+            <option value="map">As the map says</option>
+            <option value="slower">Slower (more time to move your eyes)</option>
+            <option value="slowest">Much slower</option>
+          </select>
+          <label for="mania-density" data-for="onekey eyes">Note density</label>
+          <select id="mania-density" data-for="onekey eyes">
             <option value="beat">Every beat at most</option>
             <option value="half">Half beats at most</option>
             <option value="all">All rhythms (quarter beats)</option>
           </select>
-          <label for="mania-shape" data-one-key>Shape</label>
-          <select id="mania-shape" data-one-key>
+          <label for="mania-shape" data-for="onekey eyes">Shape</label>
+          <select id="mania-shape" data-for="onekey eyes">
             <option value="box">Box, with lines closing in</option>
             <option value="circle">Circle, with rings closing in</option>
           </select>
-          <label for="mania-rhythm">Corner circles</label>
-          <select id="mania-rhythm">
+          <label for="mania-rhythm" data-for="onekey eyes mania">Corner circles</label>
+          <select id="mania-rhythm" data-for="onekey eyes mania">
             <option value="bar">Every bar</option>
             <option value="2">Every 2 beats</option>
             <option value="1">Every beat</option>
           </select>
-          <label for="mania-scroll">Note fall time</label>
-          <span class="range"><input id="mania-scroll" type="range" min="400" max="2000" step="50"><output id="mania-scroll-value"></output></span>
+          <label for="mania-scroll" data-for="onekey eyes mania">Note fall time</label>
+          <span class="range" data-for="onekey eyes mania"><input id="mania-scroll" type="range" min="400" max="2000" step="50"><output id="mania-scroll-value"></output></span>
           <label for="mania-offset">Note offset (ms)</label>
           <span class="offset-row">
             <input id="mania-offset" type="number" step="5">
@@ -274,7 +290,7 @@
         <button id="btn-editor" disabled>Make a level</button>
         <button id="btn-mania-back">Menu</button>
       </div>
-      <p class="hint">One key: any key but <kbd>G</kbd> (it shows your gaze), so two fingers can take turns on fast notes. Mania: <kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd>. <kbd>Esc</kbd> quits a song. If notes feel late, lower the note offset.</p>
+      <p class="hint">One key: any key but <kbd>G</kbd> (it shows your gaze), so two fingers can take turns on fast notes. Mania: <kbd>D</kbd> <kbd>F</kbd> <kbd>J</kbd> <kbd>K</kbd>. osu!: any key or a click. <kbd>Esc</kbd> quits a song. If notes feel late, lower the note offset.</p>
     </div>
   </section>
 

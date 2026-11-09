@@ -50,10 +50,15 @@ const mania = new ManiaMode({
   setState: (state) => setState(state),
   gaze: (now) => currentGaze(now),
   exit: () => setState("check"),
-  learn: (x, y, at) => {
-    if (app.gaze) app.pendingLooks.push({ target: { x, y }, from: at + LEARN_FROM_MS, to: at + LEARN_TO_MS });
+  // A look at (x, y) (viewport fractions) at time `at`. By default, eyes rest
+  // there just after (a popped corner circle); `from`/`to` say otherwise, and
+  // `near` (pixels) asks for the gaze to have been that close rather than in
+  // the same quarter of the screen.
+  learn: (x, y, at, { from = LEARN_FROM_MS, to = LEARN_TO_MS, near = null } = {}) => {
+    if (app.gaze) app.pendingLooks.push({ target: { x, y }, from: at + from, to: at + to, near });
   },
   tunedCount: () => (app.gaze ? app.gaze.learnedTotal : null),
+  aimSlack: () => app.slack,
 });
 
 function setState(state, { focus = true } = {}) {
@@ -331,12 +336,15 @@ function drawGazeRing(gaze) {
 }
 
 // Self-correcting calibration: once a look's window has passed, learn from
-// it if the estimated gaze stayed in the same quarter of the screen.
+// it if the estimated gaze stayed near the target: in the same quarter of the
+// screen, or within `near` pixels.
 function learnFromLooks(now) {
   while (app.pendingLooks.length && now > app.pendingLooks[0].to + LEARN_WAIT_MS) {
-    const { target, from, to } = app.pendingLooks.shift();
-    const sameQuarter = (p) => p.x < 0.5 === target.x < 0.5 && p.y < 0.5 === target.y < 0.5;
-    app.gaze?.learn(target, from, to, sameQuarter);
+    const { target, from, to, near } = app.pendingLooks.shift();
+    const agrees = near
+      ? (p) => Math.hypot((p.x - target.x) * app.width, (p.y - target.y) * app.height) <= near
+      : (p) => p.x < 0.5 === target.x < 0.5 && p.y < 0.5 === target.y < 0.5;
+    app.gaze?.learn(target, from, to, agrees);
   }
 }
 
@@ -359,8 +367,9 @@ $("btn-recalibrate-check").addEventListener("click", startCalibration);
 $("btn-play").addEventListener("click", startCountdown);
 $("btn-again").addEventListener("click", startCountdown);
 $("btn-ball-menu").addEventListener("click", () => setState("check"));
-$("btn-mania").addEventListener("click", () => mania.open({ eyes: false }));
-$("btn-mania-eyes").addEventListener("click", () => mania.open({ eyes: true }));
+$("btn-mania").addEventListener("click", () => mania.open({ pick: "peripheral" }));
+$("btn-mania-eyes").addEventListener("click", () => mania.open({ pick: "eyes" }));
+$("btn-osu").addEventListener("click", () => mania.open({ pick: "osu" }));
 $("btn-tutorial-next").addEventListener("click", nextTutorialStep);
 $("btn-tutorial-back").addEventListener("click", previousTutorialStep);
 $("btn-tutorial-skip").addEventListener("click", closeTutorial);
@@ -374,6 +383,10 @@ window.addEventListener("pointermove", (e) => {
 });
 window.addEventListener("pointerdown", (e) => {
   if (app.state === "editor-rec") mania.editorPointer(e);
+  else if (app.state === "mania") mania.pointerdown(e);
+});
+window.addEventListener("pointerup", (e) => {
+  if (app.state === "mania") mania.pointerup(e);
 });
 window.addEventListener("keydown", (e) => {
   if (app.state === "editor-rec") {

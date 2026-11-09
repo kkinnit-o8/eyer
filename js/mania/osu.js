@@ -46,6 +46,30 @@ export function mapsFromEntries(entries) {
   return { maps, audioFiles };
 }
 
+/**
+ * One hit object: { x, y, time, type, newCombo, colorSkip } plus, for
+ * sliders, { curve: { type, points }, slides, length } and, for spinners,
+ * { end }. type is "circle", "slider" or "spinner".
+ */
+function parseObject(p) {
+  const [x, y, time, flags] = p.slice(0, 4).map(Number);
+  if (![x, y, time, flags].every(Number.isFinite)) return null;
+  const object = { x, y, time, type: "circle", newCombo: Boolean(flags & 4), colorSkip: (flags >> 4) & 7 };
+  if (flags & 2) {
+    // curveType|x:y|x:y...,slides,length
+    const [curveType, ...rest] = (p[5] || "").split("|");
+    const points = [{ x, y }, ...rest.map((s) => s.split(":").map(Number)).map(([px, py]) => ({ x: px, y: py }))];
+    object.type = "slider";
+    object.curve = { type: curveType, points: points.filter((q) => Number.isFinite(q.x) && Number.isFinite(q.y)) };
+    object.slides = Math.max(1, Number(p[6]) || 1);
+    object.length = Number(p[7]) || 0;
+  } else if (flags & 8) {
+    object.type = "spinner";
+    object.end = Math.max(time, Number(p[5]) || time);
+  }
+  return object;
+}
+
 function baseName(path) {
   return path.split(/[\\/]/).pop().toLowerCase();
 }
@@ -61,9 +85,16 @@ export function parseOsu(text) {
     mode: 0,
     keys: 4,
     od: 5,
+    // osu!standard: circle size, approach rate, slider speed and tick rate.
+    cs: 5,
+    ar: null,
+    sliderMultiplier: 1.4,
+    tickRate: 1,
+    colors: [], // combo colors, "#rrggbb"
     audioFilename: "",
     timingPoints: [],
-    hitObjects: [],
+    hitObjects: [], // for the key games: { x, time, end }
+    objects: [], // every hit object as osu!standard sees it (see parseObject)
     circles: [], // eye circles placed in the level editor: { time, corner }
   };
   let section = "";
@@ -88,9 +119,15 @@ export function parseOsu(text) {
         case "Version": map.version = value; break;
         case "Creator": map.creator = value; break;
         case "BeatmapSetID": map.setId = Number(value) || 0; break;
-        case "CircleSize": map.keys = Math.round(Number(value)); break; // key count in mania
+        case "CircleSize": map.cs = Number(value); map.keys = Math.round(map.cs); break; // key count in mania
         case "OverallDifficulty": map.od = Number(value); break;
+        case "ApproachRate": map.ar = Number(value); break;
+        case "SliderMultiplier": map.sliderMultiplier = Number(value) || 1.4; break;
+        case "SliderTickRate": map.tickRate = Number(value) || 1; break;
       }
+    } else if (section === "Colours") {
+      const m = line.match(/^Combo\d+\s*:\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+      if (m) map.colors.push("#" + m.slice(1, 4).map((v) => Number(v).toString(16).padStart(2, "0")).join(""));
     } else if (section === "TimingPoints") {
       // time,beatLength,meter,sampleSet,sampleIndex,volume,uninherited,effects
       const p = line.split(",").map(Number);
@@ -109,6 +146,8 @@ export function parseOsu(text) {
     } else if (section === "HitObjects") {
       // x,y,time,type,hitSound,objectParams,hitSample
       const p = line.split(",");
+      const object = parseObject(p);
+      if (object) map.objects.push(object);
       const x = Number(p[0]);
       const time = Number(p[2]);
       const type = Number(p[3]);
@@ -120,6 +159,8 @@ export function parseOsu(text) {
   }
 
   map.custom = map.creator === EDITOR_CREATOR;
+  map.ar ??= map.od; // old maps have no approach rate of their own
+  map.objects.sort((a, b) => a.time - b.time);
   map.circles.sort((a, b) => a.time - b.time);
   map.timingPoints.sort((a, b) => a.time - b.time);
   map.hitObjects.sort((a, b) => a.time - b.time);
